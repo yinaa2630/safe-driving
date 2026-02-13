@@ -17,6 +17,6 @@ http://localhost:8000/health
 ---
 
 ## 현재 구성
-> FastAPI 기반 Backend
-> Oracle XE (Docker 컨테이너)
-> Docker Compose로 실행 환경 통합
+- > FastAPI 기반 Backend
+- > Oracle XE (Docker 컨테이너)
+- > Docker Compose로 실행 환경 통합
