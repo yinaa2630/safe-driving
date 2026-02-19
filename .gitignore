@@ -1,0 +1,62 @@
+# =========================
+# Node / NestJS
+# =========================
+node_modules/
+dist/
+coverage/
+
+# Backend build output
+backend/dist/
+backend/node_modules/
+
+# =========================
+# Flutter / Frontend
+# =========================
+frontend/build/
+frontend/.dart_tool/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/.packages
+frontend/.metadata
+
+# =========================
+# Logs
+# =========================
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Env files
+# =========================
+.env
+.env.*
+backend/.env
+frontend/.env
+
+# =========================
+# IDE
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# Data (raw files)
+# =========================
+data/raw/
+*.csv
+*.xlsx
+*.zip
+
+# =========================
+# Docker
+# =========================
+docker-data/
