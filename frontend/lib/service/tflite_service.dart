@@ -82,7 +82,9 @@ class TFLiteService {
 
   Future<void> loadModel() async {
     try {
-      _interpreter = await Interpreter.fromAsset('assets/drowsy_model.tflite');
+      _interpreter = await Interpreter.fromAsset(
+        'assets/model/drowsy_model.tflite',
+      );
       print('✅ TFLite 모델 로드 성공');
     } catch (e) {
       print('❌ 모델 로드 실패: $e');
@@ -103,12 +105,10 @@ class TFLiteService {
       int mlKitIdx = _indexMapping[i];
       final p = meshPoints[mlKitIdx];
 
-      // 에뮬레이터 방향에 맞게 x, y를 바꾸고 학습 분모(720, 1280) 고정
-      // 상하반전 보정
-      double nx = 1.0 - (p.y / imgHeight);
-      double ny = 1.0 - (p.x / imgWidth);
+      double nx = p.x / imgHeight;
+      double ny = p.y / imgWidth;
 
-      //print("현재 nx: ${nx.toStringAsFixed(3)}, ny: ${ny.toStringAsFixed(3)}");
+      print("🔥 Raw Score: $imgWidth : $imgHeight");
 
       currentFrame.add(nx);
       currentFrame.add(ny);
