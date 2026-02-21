@@ -4,21 +4,25 @@ services:
 
   backend:
     build: ./backend
+    container_name: backend
     ports:
-      - "8000:8000"
+      - "3000:3000"
     depends_on:
       - db
+    env_file:
+      - .env
+    restart: always
 
   db:
-    image: gvenzl/oracle-xe:21-slim
+    image: postgres:15
+    container_name: postgres
     ports:
-      - "1521:1521"
-    environment:
-      ORACLE_PASSWORD: oracle
+      - "5432:5432"
+    env_file:
+      - .env
     volumes:
-      - db_data:/opt/oracle/oradata
-  # 현재 기본 DB는 Oracle로 설정되어 있습니다
-  # 필요에 따라 다른 DB(MySQL or PostgresSQL)로 변경될 수 있습니다!
+      - db_data:/var/lib/postgresql/data
+    restart: always
 
 volumes:
   db_data:
