@@ -1,17 +1,14 @@
-# Python 3.10 고정!! (ML과 호환성 고려)
-FROM python:3.10-slim
+FROM node:20-alpine
 
 WORKDIR /app
 
-RUN pip install --upgrade pip
+COPY package*.json ./
+RUN npm install
 
-COPY requirements.txt .
+COPY . .
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN npm run build
 
-COPY ./app ./app
+EXPOSE 3000
 
-EXPOSE 8000
-
-# 서버 실행
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["node", "dist/main.js"]
