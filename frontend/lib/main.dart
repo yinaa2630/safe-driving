@@ -8,6 +8,7 @@ import 'package:flutter_demo/screens/matching_screen.dart';
 import 'package:flutter_demo/screens/signup_screen.dart';
 import 'package:flutter_demo/theme/colors.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_demo/screens/profile_screen.dart';
 
 late List<CameraDescription> cameras;
 
@@ -63,6 +64,7 @@ class MyApp extends StatelessWidget {
         '/drowsiness': (context) => DrowsinessScreen(camera: selectedCamera),
         '/matching': (context) => MatchingScreen(),
         '/complete': (context) => DriveCompleteScreen(),
+        '/profile': (context) => const ProfileScreen(),
       },
     );
   }
