@@ -20,22 +20,30 @@ export class AuthService {
     private userRepository: Repository<User>,
   ) {}
 
-  // 비밀번호 해시 (회원가입)
+
+  // 비밀번호 해시
+
   async hashPassword(password: string): Promise<string> {
     return bcrypt.hash(password, 10);
   }
 
+
   // 비밀번호 비교
+
   async comparePassword(password: string, hash: string): Promise<boolean> {
     return bcrypt.compare(password, hash);
   }
 
+
   // JWT 생성
+
   generateToken(payload: any): string {
     return this.jwtService.sign(payload);
   }
 
+
   // 회원가입
+
   async register(createUserDto: CreateUserDto) {
     const { email, password, username } = createUserDto;
 
@@ -60,7 +68,9 @@ export class AuthService {
     return { message: '회원가입 성공' };
   }
 
+
   // 로그인
+
   async login(email: string, password: string) {
     const user = await this.userRepository.findOne({
       where: { email },
@@ -81,5 +91,19 @@ export class AuthService {
     return {
       accessToken: this.generateToken(payload),
     };
+  }
+
+  // 내 정보 조회 (추가된 부분)
+  async getProfile(userId: number) {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      select: ['id', 'email', 'username'], // password 제외
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('사용자를 찾을 수 없습니다.');
+    }
+
+    return user;
   }
 }
