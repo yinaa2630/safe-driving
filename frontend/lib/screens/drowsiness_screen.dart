@@ -22,9 +22,11 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
   final FaceMeshService _meshService = FaceMeshService();
   final TFLiteService _tfLiteService = TFLiteService();
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final List<double> _scoreHistory = []; // 점수 평균을 위한 리스트
 
   bool _isProcessing = false;
   double _currentEAR = 0.0; // face mesh 에서 판단한 EAR 지수
+  int _modelDrowsyCounter = 0; // 모델 점수 지속 확인용
   double _drowsyScore = 0.0; // 모델이 판단한 졸음 확률
   bool _isDrowsy = false;
   int _warningCountdown = 3;
@@ -86,10 +88,10 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
   void _processCameraImage(CameraImage image) async {
     if (_isProcessing) return;
 
-    // 💡 150ms(약 0.5초) 마다 한 번씩만 처리하도록 제한
+    // 0.1초 간격으로 데이터 수집
     final now = DateTime.now();
     if (_lastProcessTime != null &&
-        now.difference(_lastProcessTime!).inMilliseconds < 500) {
+        now.difference(_lastProcessTime!).inMilliseconds < 100) {
       return;
     }
     _lastProcessTime = now;
@@ -123,17 +125,21 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
         const double targetWidth = 720.0;
         const double targetHeight = 1280.0;
 
-        // 현재 카메라 이미지 해상도 (예: 1080, 1920 등)
-        final double currentWidth = image.width.toDouble();
-        final double currentHeight = image.height.toDouble();
-
+        // 현재 카메라가 가로형인지 세로형인지 상관없이
+        // "긴 축은 긴 축끼리, 짧은 축은 짧은 축끼리" 매칭해야 좌표가 안 찌그러집니다.
+        final double srcW = (image.width > image.height)
+            ? image.height.toDouble()
+            : image.width.toDouble();
+        final double srcH = (image.width > image.height)
+            ? image.width.toDouble()
+            : image.height.toDouble();
         // 좌표 스케일링: 현재 좌표 * (타겟 해상도 / 현재 해상도)
         // List<FaceMeshPoint> 타입을 유지하며 내부 값만 변경
         final List<FaceMeshPoint> scaledPoints = mesh.points.map((pt) {
           return FaceMeshPoint(
             index: pt.index,
-            x: pt.x * (targetWidth / currentWidth),
-            y: pt.y * (targetHeight / currentHeight),
+            x: pt.x * (targetWidth / srcW),
+            y: pt.y * (targetHeight / srcH),
             // 만약 z축(깊이)이나 다른 속성이 있다면 그대로 복사
             z: pt.z,
           );
@@ -157,69 +163,79 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
     }
   }
 
-  /// EAR 수치 업데이트 및 2초 졸음 판정 로직
   void _updateUI(double ear, double? score) async {
-    const double earThreshold = 0.21; // ear 판단 기준값
-    const double modelThreshold = 0.5; // TFLite 졸음 기준값
-    setState(() {
-      _currentEAR = ear;
-      if (score != null) _drowsyScore = score;
-    });
+    const double earThreshold = 0.21;
+    const double modelUpperThreshold = 0.85; // 이 점수 넘으면 졸음 의심
+    const double modelLowerThreshold = 0.60; // 이 점수 밑으로 내려가야 안심
 
-    // 1. EAR 판정 (2초 지속되어야 함)
-    bool isEarClosed = (ear < earThreshold);
-    if (isEarClosed) {
-      _closedStartTime ??= DateTime.now(); // 처음 눈 감았을 때 시간 기록
-    } else {
-      _closedStartTime = null; // 눈 뜨면 초기화
+    // 1. 모델 점수 안정화 (이동 평균)
+    if (score != null) {
+      _scoreHistory.add(score);
+      if (_scoreHistory.length > 8) _scoreHistory.removeAt(0); // 최근 8프레임 평균
     }
 
-    // EAR이 2초 이상 유지되었는지 확인
+    double avgScore = _scoreHistory.isEmpty
+        ? 0.0
+        : _scoreHistory.reduce((a, b) => a + b) / _scoreHistory.length;
+
+    setState(() {
+      _currentEAR = ear;
+      _drowsyScore = avgScore; // 화면에는 부드러운 평균 점수 표시
+    });
+
+    // 2. EAR 판정 (2초 지속)
+    bool isEarClosed = (ear < earThreshold);
+    if (isEarClosed) {
+      _closedStartTime ??= DateTime.now();
+    } else {
+      _closedStartTime = null;
+    }
+
     bool earDrowsy =
         _closedStartTime != null &&
         DateTime.now().difference(_closedStartTime!).inSeconds >= 2;
 
-    // 2. 모델 판정 (모델은 순간적인 판단이 중요하므로 즉시 반영하거나 짧은 지속 시간)
-    // 여기서는 모델 점수가 기준치를 넘었을 때를 '졸음'으로 봅니다.
-    bool modelDrowsy = (score != null && score > modelThreshold);
+    // 3. 모델 판정 (점수가 높게 유지되는지 체크)
+    if (avgScore > modelUpperThreshold) {
+      _modelDrowsyCounter++;
+    } else if (avgScore < modelLowerThreshold) {
+      _modelDrowsyCounter = 0; // 확실히 눈을 떠야 초기화
+    }
 
-    // 3. 최종 결합 (OR 조건)
-    // EAR이 2초 이상 낮거나, 모델이 졸음이라고 판단하면 경고!
-    // EAR 또는 모델이 졸음 상태로 판단된 경우
-    if (earDrowsy || modelDrowsy) {
+    // 모델 점수가 약 0.5초~1초 이상 높게 유지되면 졸음으로 간주
+    bool modelDrowsy = _modelDrowsyCounter >= 10;
+
+    // 4. 최종 졸음 상태 결정
+    bool currentlyDetected = earDrowsy || modelDrowsy;
+
+    if (currentlyDetected) {
       if (!_isDrowsy) {
-        // *** 1단계 경고 진입 ***
+        // *** 경고 진입 ***
         setState(() {
           _isDrowsy = true;
-          _drowsyStartTime = DateTime.now(); // 경고 시작 시간 기록
-          _warningCountdown = 3; // 카운트다운 초기화
+          _drowsyStartTime = DateTime.now();
+          _warningCountdown = 3;
         });
-
         _playBeep();
       } else {
-        // 이미 졸음 상태 → 지속 시간 체크
+        // 경고 유지 및 카운트다운
         final elapsed = DateTime.now().difference(_drowsyStartTime!).inSeconds;
-
         setState(() {
           _warningCountdown = (3 - elapsed).clamp(0, 3);
         });
 
-        // *** 3초 지속 시 2단계 강한 경고 화면 이동 ***
         if (elapsed >= 3 && !_isSeverePushed) {
-          _isSeverePushed = true; // 중복 push 방지
-
+          _isSeverePushed = true;
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => SevereWarningScreen()),
-          ).then((_) {
-            // 뒤로 돌아오면 다시 push 허용
-            _isSeverePushed = false;
-          });
+            MaterialPageRoute(builder: (_) => const SevereWarningScreen()),
+          ).then((_) => _isSeverePushed = false);
         }
       }
     } else {
-      // 정상 상태로 돌아간 경우
-      if (_isDrowsy) {
+      // 정상 상태 복귀
+      if (_isDrowsy && avgScore < modelLowerThreshold) {
+        // 점수가 충분히 낮아지면 해제
         _stopBeep();
         setState(() {
           _isDrowsy = false;

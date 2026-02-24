@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:google_mlkit_face_mesh_detection/google_mlkit_face_mesh_detection.dart';
 
@@ -8,76 +10,16 @@ class TFLiteService {
   final List<double> _scoreHistory = [];
 
   static const List<int> _indexMapping = [
-    162,
-    21,
-    54,
-    103,
-    67,
-    109,
-    10,
-    338,
-    297,
-    332,
-    284,
-    251,
-    389,
-    356,
-    454,
-    323,
-    361,
-    70,
-    63,
-    105,
-    66,
-    107,
-    336,
-    296,
-    334,
-    293,
-    300,
-    168,
-    6,
-    197,
-    195,
-    5,
-    4,
-    1,
-    275,
-    440,
-    33,
-    160,
-    158,
-    133,
-    153,
-    144,
-    362,
-    385,
-    387,
-    263,
-    373,
-    380,
-    61,
-    39,
-    37,
-    0,
-    267,
-    269,
-    291,
-    405,
-    314,
-    17,
-    84,
-    181,
-    78,
-    191,
-    80,
-    13,
-    310,
-    415,
-    308,
-    95,
-    159,
-    386,
+    // 1. Nose Bridge (4개)
+    168, 6, 197, 195,
+    // 2. Left Eye (6개)
+    33, 160, 158, 133, 153, 144,
+    // 3. Right Eye (6개)
+    362, 385, 387, 263, 373, 380,
+    // 4. Lips Outer (12개)
+    61, 39, 37, 0, 267, 269, 291, 405, 314, 17, 84, 181,
+    // 5. Lips Inner (8개)
+    78, 191, 80, 13, 310, 415, 308, 95,
   ];
 
   Future<void> loadModel() async {
@@ -96,50 +38,45 @@ class TFLiteService {
     double imgWidth,
     double imgHeight,
   ) {
-    if (_interpreter == null || meshPoints.length < 468) return null;
+    if (_interpreter == null) return null;
 
-    // 1. 현재 프레임 데이터 생성 (에러 방지를 위해 명시적 리스트 생성)
+    // 1. 기준점(미간 혹은 코끝) 좌표 가져오기 (168번 혹은 4번 점)
+    final centerPoint = meshPoints[168];
+    final double centerX = centerPoint.x;
+    final double centerY = centerPoint.y;
+
     List<double> currentFrame = [];
+    for (int i = 0; i < _indexMapping.length; i++) {
+      final p = meshPoints[_indexMapping[i]];
 
-    for (int i = 0; i < 70; i++) {
-      int mlKitIdx = _indexMapping[i];
-      final p = meshPoints[mlKitIdx];
+      // 2. [핵심] 기준점으로부터의 상대적 거리 계산 후 아주 작은 상수로 스케일링
+      // 코 끝에서 얼마나 떨어져 있는지만 계산합니다. (해상도 영향 거의 안 받음)
+      // 0.1을 곱하는 이유는 값을 모델이 좋아하는 -1.0 ~ 1.0 범위로 대충 맞추기 위함입니다.
+      double nx = (p.x - centerX) / imgWidth * 5.0 + 0.5;
+      double ny = (p.y - centerY) / imgHeight * 5.0 + 0.5;
 
-      double nx = p.x / imgHeight;
-      double ny = p.y / imgWidth;
-
-      print("🔥 Raw Score: $imgWidth : $imgHeight");
-
-      currentFrame.add(nx);
-      currentFrame.add(ny);
+      currentFrame.add(nx.clamp(0.0, 1.0));
+      currentFrame.add(ny.clamp(0.0, 1.0));
     }
 
     _inputBuffer.add(currentFrame);
-    if (_inputBuffer.length > 25) {
-      _inputBuffer.removeAt(0);
-    }
+    if (_inputBuffer.length > 25) _inputBuffer.removeAt(0);
+    if (_inputBuffer.length < 25) return null;
 
-    if (_inputBuffer.length == 25) {
-      // 💡 [타입 에러 방지] dynamic 리스트로 감싸기
-      var input = [_inputBuffer];
+    try {
+      final inputTensor = Float32List.fromList(
+        _inputBuffer.expand((e) => e).toList(),
+      ).reshape([1, 25, 72]);
+
       var output = List.generate(1, (_) => List.filled(1, 0.0));
+      _interpreter!.run(inputTensor, output);
 
-      try {
-        _interpreter!.run(input, output);
+      print('Raw Data : ${output[0][0]}');
 
-        // 💡 [[값]] 형태에서 첫 번째 값 추출
-        double rawScore = output[0][0];
-        print("🔥 Raw Score: $rawScore");
-
-        _scoreHistory.add(rawScore);
-        if (_scoreHistory.length > 5) _scoreHistory.removeAt(0);
-        return _scoreHistory.reduce((a, b) => a + b) / _scoreHistory.length;
-      } catch (e) {
-        print("❌ 추론 에러: $e");
-        return null;
-      }
+      return output[0][0]; // 점수 확인
+    } catch (e) {
+      return null;
     }
-    return null;
   }
 
   void dispose() {
