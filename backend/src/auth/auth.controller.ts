@@ -14,7 +14,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  // 이메일 + 비밀번호 로그인
+  // 로그인
   @Post('login')
   async login(
     @Body() body: { email: string; password: string },
@@ -22,17 +22,16 @@ export class AuthController {
     return this.authService.login(body.email, body.password);
   }
 
-  @UseGuards(JwtAuthGuard)
-  @Get('me')
-  getProtected(@Request() req) {
-    return {
-      message: 'Protected route accessed',
-      user: req.user,
-    };
-  }
-
+  // 회원가입
   @Post('register')
   async register(@Body() createUserDto: CreateUserDto) {
     return this.authService.register(createUserDto);
+  }
+
+  // 내 정보 조회
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  async getMe(@Request() req) {
+    return this.authService.getProfile(req.user.userId);
   }
 }
