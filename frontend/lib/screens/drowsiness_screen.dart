@@ -32,8 +32,7 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
   int _warningCountdown = 3;
   DateTime? _drowsyStartTime;
   bool _isSeverePushed = false; // 경고 화면 중복 이동 방지
-  DateTime? _closedStartTime;
-  DateTime? _lastProcessTime;
+  int _frameCount = 0;
 
   // 눈 랜드마크 인덱스 (고정값)
   final List<int> _leftEyeIdx = [160, 144, 158, 153, 33, 133];
@@ -88,20 +87,13 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
   void _processCameraImage(CameraImage image) async {
     if (_isProcessing) return;
 
-    // 0.1초 간격으로 데이터 수집
-    final now = DateTime.now();
-    if (_lastProcessTime != null &&
-        now.difference(_lastProcessTime!).inMilliseconds < 100) {
-      return;
-    }
-    _lastProcessTime = now;
+    // 4프레임당 1번만 처리
+    _frameCount++;
+    if (_frameCount % 4 != 0) return;
 
     _isProcessing = true;
 
     try {
-      // 화면 멈춤 방지를 위한 한 프레임 양보
-      await Future.delayed(Duration.zero);
-
       // 1. 이미지 변환 (CameraUtils 사용)
       final inputImage = CameraUtils.convertCameraImageToInputImage(
         image,
@@ -164,14 +156,13 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
   }
 
   void _updateUI(double ear, double? score) async {
-    const double earThreshold = 0.21;
-    const double modelUpperThreshold = 0.85; // 이 점수 넘으면 졸음 의심
-    const double modelLowerThreshold = 0.60; // 이 점수 밑으로 내려가야 안심
+    const double modelUpperThreshold = 0.45; // 이 점수 넘으면 졸음 의심
+    const double modelLowerThreshold = 0.35; // 이 점수 밑으로 내려가야 안심
 
     // 1. 모델 점수 안정화 (이동 평균)
     if (score != null) {
       _scoreHistory.add(score);
-      if (_scoreHistory.length > 8) _scoreHistory.removeAt(0); // 최근 8프레임 평균
+      if (_scoreHistory.length > 10) _scoreHistory.removeAt(0); // 최근 25프레임 평균
     }
 
     double avgScore = _scoreHistory.isEmpty
@@ -183,32 +174,16 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
       _drowsyScore = avgScore; // 화면에는 부드러운 평균 점수 표시
     });
 
-    // 2. EAR 판정 (2초 지속)
-    bool isEarClosed = (ear < earThreshold);
-    if (isEarClosed) {
-      _closedStartTime ??= DateTime.now();
-    } else {
-      _closedStartTime = null;
-    }
-
-    bool earDrowsy =
-        _closedStartTime != null &&
-        DateTime.now().difference(_closedStartTime!).inSeconds >= 2;
-
-    // 3. 모델 판정 (점수가 높게 유지되는지 체크)
+    // 2. 모델 판정 (점수가 높게 유지되는지 체크)
     if (avgScore > modelUpperThreshold) {
       _modelDrowsyCounter++;
     } else if (avgScore < modelLowerThreshold) {
       _modelDrowsyCounter = 0; // 확실히 눈을 떠야 초기화
     }
 
-    // 모델 점수가 약 0.5초~1초 이상 높게 유지되면 졸음으로 간주
-    bool modelDrowsy = _modelDrowsyCounter >= 10;
+    bool modelDrowsy = _modelDrowsyCounter >= 5;
 
-    // 4. 최종 졸음 상태 결정
-    bool currentlyDetected = earDrowsy || modelDrowsy;
-
-    if (currentlyDetected) {
+    if (modelDrowsy) {
       if (!_isDrowsy) {
         // *** 경고 진입 ***
         setState(() {
@@ -301,67 +276,6 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
           ),
 
           // ---------------------------
-          // 4) 하단 분석 패널 (검정 카드)
-          // ---------------------------
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 180,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-              margin: const EdgeInsets.symmetric(horizontal: 24),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.55),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "EYE TRACKING",
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        "정상 감지됨",
-                        style: TextStyle(
-                          color: mainGreen,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      const Text(
-                        "PERCLOS",
-                        style: TextStyle(color: Colors.white70, fontSize: 13),
-                      ),
-                      Text(
-                        "${(_drowsyScore * 100).toStringAsFixed(1)}%",
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // ---------------------------
           // 5) 하단 바텀 시트
           // ---------------------------
           Positioned(
@@ -440,113 +354,7 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
               ),
             ),
           ),
-
-          // ---------------------------
-          // 6) 졸음 경고 오버레이
-          // ---------------------------
-          if (_isDrowsy) _buildFirstWarningOverlay(),
         ],
-      ),
-    );
-  }
-
-  Widget _buildFirstWarningOverlay() {
-    return SizedBox.expand(
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFFFF7E9), Color(0xFFFFF2D9)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // 아이콘
-            Container(
-              padding: EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withAlpha(50),
-                border: Border.all(color: warnYellow, width: 2),
-              ),
-              child: Icon(Icons.bedtime_rounded, size: 60, color: warnYellow),
-            ),
-
-            SizedBox(height: 24),
-
-            // 제목
-            Text(
-              "눈 감김 감지됨",
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-                color: warnYellow,
-              ),
-            ),
-
-            SizedBox(height: 8),
-
-            // 설명
-            Text(
-              "잠시 후에도 지속되면\n경보가 울립니다",
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: textMedium),
-            ),
-
-            SizedBox(height: 20),
-
-            // 카운트다운
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-              decoration: BoxDecoration(
-                color: surface,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Text(
-                "⚠ 경보 울림 · ${_warningCountdown}s 후 경보",
-                style: TextStyle(
-                  color: warnYellow,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-
-            SizedBox(height: 40),
-
-            // 버튼
-            GestureDetector(
-              onTap: () {
-                setState(() {
-                  _isDrowsy = false; // 오버레이 닫힘
-                  _drowsyStartTime = null; // 타이머 초기화
-                  _warningCountdown = 3;
-                });
-                _stopBeep(); // 혹시 소리 나고 있으면 멈춤
-              },
-              child: Container(
-                width: 220,
-                padding: EdgeInsets.symmetric(vertical: 16),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: warnYellow, width: 1.2),
-                ),
-                child: Center(
-                  child: Text(
-                    "괜찮아요",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: warnYellow,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -555,9 +363,9 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F7F4),
+        color: surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFEDEDED)),
+        border: Border.all(color: borderColor),
       ),
       child: Column(
         children: [
