@@ -156,8 +156,8 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
   }
 
   void _updateUI(double ear, double? score) async {
-    const double modelUpperThreshold = 0.45; // 이 점수 넘으면 졸음 의심
-    const double modelLowerThreshold = 0.35; // 이 점수 밑으로 내려가야 안심
+    const double modelUpperThreshold = 0.5; // 이 점수 넘으면 졸음 의심
+    const double modelLowerThreshold = 0.4; // 이 점수 밑으로 내려가야 안심
 
     // 1. 모델 점수 안정화 (이동 평균)
     if (score != null) {
@@ -212,7 +212,12 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
             MaterialPageRoute(builder: (_) => const SevereWarningScreen()),
           ).then((_) {
             _isSeverePushed = false;
-            _modelDrowsyCounter = 0;
+            _modelDrowsyCounter = 0; // 카운터 초기화
+            _scoreHistory.clear(); // 점수 히스토리 완전 삭제
+            _drowsyScore = 0.0; // 표시되는 점수 초기화
+            _isDrowsy = false; // 졸음 상태 해제
+            _drowsyStartTime = null; // 시작 시간 초기화
+            _isEyeClosed = false; // 눈깜빡임 상태 초기화
           });
         }
       }
