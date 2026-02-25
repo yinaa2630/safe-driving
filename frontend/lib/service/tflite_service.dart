@@ -29,9 +29,12 @@ class TFLiteService {
   ];
 
   Future<void> loadModel() async {
+    final options = InterpreterOptions();
+    options.addDelegate(XNNPackDelegate()); // 안드로이드 CPU 가속
     try {
       _interpreter = await Interpreter.fromAsset(
         'assets/model/drowsy_model_gru.tflite',
+        options: options,
       );
       print('✅ TFLite 모델 로드 성공');
     } catch (e) {
