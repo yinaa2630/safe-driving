@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_demo/theme/colors.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../data/drive_repository.dart';
 import '../../models/drive_record.dart';
@@ -9,17 +10,14 @@ class MonthlyCalendarWidget extends StatefulWidget {
   const MonthlyCalendarWidget({super.key});
 
   @override
-  State<MonthlyCalendarWidget> createState() =>
-      _MonthlyCalendarWidgetState();
+  State<MonthlyCalendarWidget> createState() => _MonthlyCalendarWidgetState();
 }
 
-class _MonthlyCalendarWidgetState
-    extends State<MonthlyCalendarWidget> {
+class _MonthlyCalendarWidgetState extends State<MonthlyCalendarWidget> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
-  final List<DriveRecord> records =
-      DriveRepository.getMockData();
+  final List<DriveRecord> records = DriveRepository.getMockData();
 
   DriveStatus _getStatus(DateTime day) {
     for (var record in records) {
@@ -44,8 +42,7 @@ class _MonthlyCalendarWidgetState
         formatButtonVisible: false,
         titleCentered: true,
       ),
-      selectedDayPredicate: (day) =>
-          isSameDay(_selectedDay, day),
+      selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
       onDaySelected: (selectedDay, focusedDay) {
         setState(() {
           _selectedDay = selectedDay;
@@ -57,18 +54,17 @@ class _MonthlyCalendarWidgetState
           return _buildDayCell(day, _getStatus(day));
         },
         todayBuilder: (context, day, focusedDay) {
-          return _buildDayCell(
-            day,
-            _getStatus(day),
-            isToday: true,
-          );
+          return _buildDayCell(day, _getStatus(day), isToday: true);
         },
       ),
     );
   }
 
-  Widget _buildDayCell(DateTime day, DriveStatus status,
-      {bool isToday = false}) {
+  Widget _buildDayCell(
+    DateTime day,
+    DriveStatus status, {
+    bool isToday = false,
+  }) {
     String emoji = switch (status) {
       DriveStatus.good => "🥰",
       DriveStatus.normal => "🙁",
@@ -81,7 +77,7 @@ class _MonthlyCalendarWidgetState
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         border: isToday
-            ? Border.all(color: Colors.green, width: 1.5)
+            ? Border.all(color: mainGreen, width: 1.5)
             : Border.all(color: Colors.grey.shade300),
       ),
       child: Stack(
@@ -89,17 +85,9 @@ class _MonthlyCalendarWidgetState
           Positioned(
             top: 4,
             left: 4,
-            child: Text(
-              "${day.day}",
-              style: const TextStyle(fontSize: 10),
-            ),
+            child: Text("${day.day}", style: const TextStyle(fontSize: 10)),
           ),
-          Center(
-            child: Text(
-              emoji,
-              style: const TextStyle(fontSize: 20),
-            ),
-          ),
+          Center(child: Text(emoji, style: const TextStyle(fontSize: 20))),
         ],
       ),
     );
