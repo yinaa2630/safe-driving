@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AuthService {
-  final String baseUrl = "http://192.168.0.22:3000";
+  final String baseUrl = "http://localhost:3000";
   final FlutterSecureStorage storage = const FlutterSecureStorage();
 
   // 회원가입
