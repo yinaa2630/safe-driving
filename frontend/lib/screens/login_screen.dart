@@ -46,6 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 28.0),
@@ -65,18 +66,18 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 32),
 
-              _buildInputLabel("이메일"),
+              _buildInputLabel("이메일 입력"),
               _buildInputField(
                 controller: emailController,
-                hint: "[email protected]",
+                hint: "이메일을 입력해주세요",
               ),
 
               const SizedBox(height: 20),
 
-              _buildInputLabel("비밀번호"),
+              _buildInputLabel("비밀번호 입력"),
               _buildInputField(
                 controller: passwordController,
-                hint: "••••••••",
+                hint: "비밀번호를 입력해주세요",
                 obscure: true,
               ),
 

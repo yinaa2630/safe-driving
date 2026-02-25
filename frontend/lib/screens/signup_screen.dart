@@ -151,7 +151,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       _buildInputLabel("이름"),
                       _buildInputField(
                         controller: _nameController,
-                        hint: "홍길동",
+                        hint: "이름 입력",
                         validator: (v) =>
                             v == null || v.isEmpty
                                 ? "이름을 입력하세요"
@@ -163,7 +163,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       _buildInputLabel("이메일"),
                       _buildInputField(
                         controller: _emailController,
-                        hint: "[email protected]",
+                        hint: "이메일 주소 입력",
                         validator: (v) =>
                             v != null && v.contains("@")
                                 ? null
@@ -175,7 +175,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       _buildInputLabel("비밀번호"),
                       _buildInputField(
                         controller: _passwordController,
-                        hint: "••••••••",
+                        hint: "비밀번호 입력",
                         obscure: true,
                         validator: (v) =>
                             v != null && v.length >= 4
@@ -188,7 +188,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       _buildInputLabel("비밀번호 확인"),
                       _buildInputField(
                         controller: _confirmController,
-                        hint: "••••••••",
+                        hint: "비밀번호 재입력",
                         obscure: true,
                         validator: (v) =>
                             v != _passwordController.text
@@ -201,6 +201,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       Row(
                         children: [
                           Checkbox(
+                            activeColor: mainGreen,
+                            checkColor: bgWhite,
                             value: _agree,
                             onChanged: (v) {
                               setState(() => _agree = v ?? false);
