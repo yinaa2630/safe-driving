@@ -3,12 +3,11 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AuthService {
-  final String baseUrl = "http://localhost:3000";
+  final String baseUrl = "http://192.168.0.22:3000";
   final FlutterSecureStorage storage = const FlutterSecureStorage();
 
   // 회원가입
-  Future<String?> register(
-      String email, String password, String name) async {
+  Future<String?> register(String email, String password, String name) async {
     try {
       final response = await http
           .post(
@@ -41,15 +40,11 @@ class AuthService {
           .post(
             Uri.parse("$baseUrl/auth/login"),
             headers: {"Content-Type": "application/json"},
-            body: jsonEncode({
-              "email": email,
-              "password": password,
-            }),
+            body: jsonEncode({"email": email, "password": password}),
           )
           .timeout(const Duration(seconds: 5));
 
-      if (response.statusCode == 200 ||
-          response.statusCode == 201) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
         final token = data["accessToken"];
 
