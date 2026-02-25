@@ -73,10 +73,9 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
   /// 실시간 이미지 처리 루프
   void _processCameraImage(CameraImage image) async {
     if (_isProcessing) return;
-
-    // 4프레임당 1번만 처리
+    // 2프레임당 1번만 처리
     _frameCount++;
-    if (_frameCount % 4 != 0) return;
+    if (_frameCount % 2 != 0) return;
 
     _isProcessing = true;
 
@@ -163,12 +162,19 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
     // 1. 모델 점수 안정화 (이동 평균)
     if (score != null) {
       _scoreHistory.add(score);
-      if (_scoreHistory.length > 10) _scoreHistory.removeAt(0); // 최근 25프레임 평균
+      if (_scoreHistory.length > 5) _scoreHistory.removeAt(0); // 최근 25프레임 평균
     }
 
-    double avgScore = _scoreHistory.isEmpty
-        ? 0.0
-        : _scoreHistory.reduce((a, b) => a + b) / _scoreHistory.length;
+    // 단순 평균 대신 가중치 부여
+    double weightedSum = 0;
+    double weightTotal = 0;
+    for (int i = 0; i < _scoreHistory.length; i++) {
+      double weight = (i + 1).toDouble(); // 최근 데이터일수록 가중치 증가
+      weightedSum += _scoreHistory[i] * weight;
+      weightTotal += weight;
+    }
+
+    double avgScore = _scoreHistory.isEmpty ? 0.0 : weightedSum / weightTotal;
 
     setState(() {
       _currentEAR = ear;
@@ -315,11 +321,8 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       _buildBottomInfo("EAR", _currentEAR.toStringAsFixed(3)),
-                      _buildBottomInfo("BLINK", "$_blinkCount회"), // ✨ 추가
-                      _buildBottomInfo(
-                        "MODEL",
-                        _drowsyScore.toStringAsFixed(3),
-                      ),
+                      _buildBottomInfo("졸린눈", "$_blinkCount회"), // ✨ 추가
+                      _buildBottomInfo("졸음수치", _drowsyScore.toStringAsFixed(3)),
                       _buildBottomInfo("상태", _isDrowsy ? "주의" : "정상"),
                     ],
                   ),
