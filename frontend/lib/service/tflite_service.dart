@@ -1,89 +1,37 @@
+import 'dart:typed_data';
 import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:google_mlkit_face_mesh_detection/google_mlkit_face_mesh_detection.dart';
 
 class TFLiteService {
   Interpreter? _interpreter;
-  // 💡 타입을 dynamic으로 선언하여 유연성을 확보합니다.
-  final List<List<double>> _inputBuffer = [];
-  final List<double> _scoreHistory = [];
 
+  // 💡 데이터 버퍼: 25프레임을 담는 용도
+  final List<List<double>> _inputBuffer = [];
+
+  // 💡 [최적화 핵심] 매번 리스트를 새로 만들지 않도록 미리 할당 (1 * 25 * 72)
+  final Float32List _inputMatrix = Float32List(25 * 72);
+
+  // 💡 매번 할당하지 않도록 재사용할 단일 프레임 버퍼
+  final List<double> _currentFrameBuffer = List.filled(72, 0.0);
+
+  // Dlib 학습 순서에 맞춘 인덱스 매핑
   static const List<int> _indexMapping = [
-    162,
-    21,
-    54,
-    103,
-    67,
-    109,
-    10,
-    338,
-    297,
-    332,
-    284,
-    251,
-    389,
-    356,
-    454,
-    323,
-    361,
-    70,
-    63,
-    105,
-    66,
-    107,
-    336,
-    296,
-    334,
-    293,
-    300,
-    168,
-    6,
-    197,
-    195,
-    5,
-    4,
-    1,
-    275,
-    440,
-    33,
-    160,
-    158,
-    133,
-    153,
-    144,
-    362,
-    385,
-    387,
-    263,
-    373,
-    380,
-    61,
-    39,
-    37,
-    0,
-    267,
-    269,
-    291,
-    405,
-    314,
-    17,
-    84,
-    181,
-    78,
-    191,
-    80,
-    13,
-    310,
-    415,
-    308,
-    95,
-    159,
-    386,
+    // 1. Nose Bridge (4개)
+    168, 6, 197, 195,
+    // 2. Left Eye (6개)
+    33, 160, 158, 133, 153, 144,
+    // 3. Right Eye (6개)
+    362, 385, 387, 263, 373, 380,
+    // 4. Lips Outer (12개)
+    61, 39, 37, 0, 267, 269, 291, 405, 314, 17, 84, 181,
+    // 5. Lips Inner (8개)
+    78, 191, 80, 13, 310, 415, 308, 95,
   ];
 
   Future<void> loadModel() async {
     try {
       _interpreter = await Interpreter.fromAsset(
-        'assets/model/drowsy_model.tflite',
+        'assets/model/drowsy_model_gru.tflite',
       );
       print('✅ TFLite 모델 로드 성공');
     } catch (e) {
@@ -96,50 +44,46 @@ class TFLiteService {
     double imgWidth,
     double imgHeight,
   ) {
-    if (_interpreter == null || meshPoints.length < 468) return null;
+    if (_interpreter == null) return null;
 
-    // 1. 현재 프레임 데이터 생성 (에러 방지를 위해 명시적 리스트 생성)
-    List<double> currentFrame = [];
+    final center = meshPoints[168]; // 미간 기준점
+    final double cx = center.x;
+    final double cy = center.y;
 
-    for (int i = 0; i < 70; i++) {
-      int mlKitIdx = _indexMapping[i];
-      final p = meshPoints[mlKitIdx];
-
-      double nx = p.x / imgHeight;
-      double ny = p.y / imgWidth;
-
-      print("🔥 Raw Score: $imgWidth : $imgHeight");
-
-      currentFrame.add(nx);
-      currentFrame.add(ny);
+    // 1. 전처리: 상대 좌표 계산
+    for (int i = 0; i < _indexMapping.length; i++) {
+      final p = meshPoints[_indexMapping[i]];
+      _currentFrameBuffer[i * 2] = (p.x - cx) / imgWidth;
+      _currentFrameBuffer[i * 2 + 1] = (p.y - cy) / imgHeight;
     }
 
-    _inputBuffer.add(currentFrame);
-    if (_inputBuffer.length > 25) {
-      _inputBuffer.removeAt(0);
-    }
+    // 2. 슬라이딩 윈도우 업데이트
+    _inputBuffer.add(List<double>.from(_currentFrameBuffer));
+    if (_inputBuffer.length > 25) _inputBuffer.removeAt(0);
+    if (_inputBuffer.length < 25) return null; // 25프레임 찰 때까지 대기
 
-    if (_inputBuffer.length == 25) {
-      // 💡 [타입 에러 방지] dynamic 리스트로 감싸기
-      var input = [_inputBuffer];
+    try {
+      // 3. 💡 [최적화] expand().toList() 대신 고정된 메모리에 값만 복사
+      int offset = 0;
+      for (var frame in _inputBuffer) {
+        for (var value in frame) {
+          _inputMatrix[offset++] = value;
+        }
+      }
+
+      // 4. 추론 실행
+      final inputTensor = _inputMatrix.reshape([1, 25, 72]);
+
+      // 출력 텐서 모양 정의 (1행 1열)
       var output = List.generate(1, (_) => List.filled(1, 0.0));
 
-      try {
-        _interpreter!.run(input, output);
+      _interpreter!.run(inputTensor, output);
 
-        // 💡 [[값]] 형태에서 첫 번째 값 추출
-        double rawScore = output[0][0];
-        print("🔥 Raw Score: $rawScore");
-
-        _scoreHistory.add(rawScore);
-        if (_scoreHistory.length > 5) _scoreHistory.removeAt(0);
-        return _scoreHistory.reduce((a, b) => a + b) / _scoreHistory.length;
-      } catch (e) {
-        print("❌ 추론 에러: $e");
-        return null;
-      }
+      return output[0][0]; // 0.0 ~ 1.0 사이의 졸음 확률 반환
+    } catch (e) {
+      print("Inference Error: $e");
+      return null;
     }
-    return null;
   }
 
   void dispose() {
