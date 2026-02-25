@@ -53,8 +53,16 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Secure Drowsiness App',
       theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: mainGreen,
+        ).copyWith(onSurface: textPrimary, onPrimary: bgWhite),
         fontFamily: 'WantedSans',
         scaffoldBackgroundColor: pageBg,
+        appBarTheme: AppBarTheme(
+          backgroundColor: pageBg,
+          foregroundColor: textPrimary,
+          elevation: 0,
+        ),
       ),
       initialRoute: initialRoute,
       routes: {
