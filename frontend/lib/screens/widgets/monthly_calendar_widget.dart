@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
+import '../../data/drive_repository.dart';
+import '../../models/drive_record.dart';
 
 enum DriveStatus { none, good, normal, bad }
 
@@ -16,17 +18,20 @@ class _MonthlyCalendarWidgetState
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
-  // 🔹 더미 데이터
-  final Map<DateTime, DriveStatus> _mockData = {
-    DateTime(2026, 2, 20): DriveStatus.good,
-    DateTime(2026, 2, 18): DriveStatus.bad,
-    DateTime(2026, 2, 21): DriveStatus.normal,
-  };
+  final List<DriveRecord> records =
+      DriveRepository.getMockData();
 
   DriveStatus _getStatus(DateTime day) {
-    final normalized =
-        DateTime(day.year, day.month, day.day);
-    return _mockData[normalized] ?? DriveStatus.none;
+    for (var record in records) {
+      if (record.date.year == day.year &&
+          record.date.month == day.month &&
+          record.date.day == day.day) {
+        if (record.score >= 80) return DriveStatus.good;
+        if (record.score >= 60) return DriveStatus.normal;
+        return DriveStatus.bad;
+      }
+    }
+    return DriveStatus.none;
   }
 
   @override
@@ -49,12 +54,14 @@ class _MonthlyCalendarWidgetState
       },
       calendarBuilders: CalendarBuilders(
         defaultBuilder: (context, day, focusedDay) {
-          final status = _getStatus(day);
-          return _buildDayCell(day, status);
+          return _buildDayCell(day, _getStatus(day));
         },
         todayBuilder: (context, day, focusedDay) {
-          final status = _getStatus(day);
-          return _buildDayCell(day, status, isToday: true);
+          return _buildDayCell(
+            day,
+            _getStatus(day),
+            isToday: true,
+          );
         },
       ),
     );
@@ -62,21 +69,12 @@ class _MonthlyCalendarWidgetState
 
   Widget _buildDayCell(DateTime day, DriveStatus status,
       {bool isToday = false}) {
-    String emoji;
-
-    switch (status) {
-      case DriveStatus.good:
-        emoji = "😊";
-        break;
-      case DriveStatus.normal:
-        emoji = "🙂";
-        break;
-      case DriveStatus.bad:
-        emoji = "😴";
-        break;
-      default:
-        emoji = "-";
-    }
+    String emoji = switch (status) {
+      DriveStatus.good => "🥰",
+      DriveStatus.normal => "🙁",
+      DriveStatus.bad => "😡",
+      _ => "-",
+    };
 
     return Container(
       margin: const EdgeInsets.all(4),

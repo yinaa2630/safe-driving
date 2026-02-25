@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../service/auth_service.dart';
+import 'drive_history_detail_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -31,7 +32,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         isLoading = false;
       });
     } else {
-      // 토큰 만료 등
       Navigator.pushReplacementNamed(context, '/');
     }
   }
@@ -58,14 +58,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Column(
           children: [
             const SizedBox(height: 20),
-
             const CircleAvatar(
               radius: 45,
               child: Icon(Icons.person, size: 45),
             ),
-
             const SizedBox(height: 24),
-
             Text(
               username ?? '',
               style: const TextStyle(
@@ -73,9 +70,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 fontWeight: FontWeight.w700,
               ),
             ),
-
             const SizedBox(height: 6),
-
             Text(
               email ?? '',
               style: const TextStyle(
@@ -83,9 +78,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 color: Colors.grey,
               ),
             ),
-
             const SizedBox(height: 40),
-
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: OutlinedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DriveHistoryDetailScreen(),
+                    ),
+                  );
+                },
+                child: const Text(
+                  "상세 주행 기록 보기",
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               height: 50,
