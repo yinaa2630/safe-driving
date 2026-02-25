@@ -31,10 +31,12 @@ class _RestStopScreenState extends State<RestStopScreen> {
   }
 
   Future<void> _fetchNearestRestStops() async {
-    print('서버 요청 시작: lat=${widget.latitude}, lng=${widget.longitude}, bearing=${widget.bearing}');
+    print(
+      '서버 요청 시작: lat=${widget.latitude}, lng=${widget.longitude}, bearing=${widget.bearing}',
+    );
     try {
       final uri = Uri.parse(
-        'http://localhost:3000/rest-area/nearest'
+        'http://192.168.0.22:3000/rest-area/nearest'
         '?lat=${widget.latitude}'
         '&lng=${widget.longitude}'
         '&bearing=${widget.bearing}'
@@ -91,43 +93,42 @@ class _RestStopScreenState extends State<RestStopScreen> {
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
           : _errorMessage != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.error_outline, size: 48, color: Colors.grey),
-                      SizedBox(height: 12),
-                      Text(_errorMessage!,
-                          style: TextStyle(color: Colors.grey)),
-                      SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: () {
-                          setState(() {
-                            _isLoading = true;
-                            _errorMessage = null;
-                          });
-                          _fetchNearestRestStops();
-                        },
-                        child: Text('다시 시도'),
-                      ),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 48, color: Colors.grey),
+                  SizedBox(height: 12),
+                  Text(_errorMessage!, style: TextStyle(color: Colors.grey)),
+                  SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _isLoading = true;
+                        _errorMessage = null;
+                      });
+                      _fetchNearestRestStops();
+                    },
+                    child: Text('다시 시도'),
                   ),
-                )
-              : _restStops.isEmpty
-                  ? Center(
-                      child: Text(
-                        '주행 방향에 휴게소가 없습니다.',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: EdgeInsets.all(16),
-                      itemCount: _restStops.length,
-                      itemBuilder: (context, index) {
-                        final place = _restStops[index];
-                        return _buildRestStopCard(place);
-                      },
-                    ),
+                ],
+              ),
+            )
+          : _restStops.isEmpty
+          ? Center(
+              child: Text(
+                '주행 방향에 휴게소가 없습니다.',
+                style: TextStyle(color: Colors.grey),
+              ),
+            )
+          : ListView.builder(
+              padding: EdgeInsets.all(16),
+              itemCount: _restStops.length,
+              itemBuilder: (context, index) {
+                final place = _restStops[index];
+                return _buildRestStopCard(place);
+              },
+            ),
     );
   }
 
@@ -214,15 +215,16 @@ class _RestStopScreenState extends State<RestStopScreen> {
           // 편의시설 아이콘들
           Row(
             children: [
-              if (place['has_toilet'] == true)
-                _buildAmenity(Icons.wc, '화장실'),
+              if (place['has_toilet'] == true) _buildAmenity(Icons.wc, '화장실'),
               if (place['gas_station'] == true)
                 _buildAmenity(Icons.local_gas_station, '주유소'),
               if (place['ev_station'] == true)
                 _buildAmenity(Icons.ev_station, '전기차'),
               if (place['parking_count'] != null)
                 _buildAmenity(
-                    Icons.local_parking, '${place['parking_count']}면'),
+                  Icons.local_parking,
+                  '${place['parking_count']}면',
+                ),
             ],
           ),
 
@@ -258,10 +260,7 @@ class _RestStopScreenState extends State<RestStopScreen> {
         children: [
           Icon(icon, size: 13, color: Colors.grey),
           SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(fontSize: 12, color: Colors.grey),
-          ),
+          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey)),
         ],
       ),
     );
