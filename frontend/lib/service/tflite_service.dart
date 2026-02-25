@@ -11,6 +11,9 @@ class TFLiteService {
   // 💡 [최적화 핵심] 매번 리스트를 새로 만들지 않도록 미리 할당 (1 * 25 * 72)
   final Float32List _inputMatrix = Float32List(25 * 72);
 
+  // 💡 매번 할당하지 않도록 재사용할 단일 프레임 버퍼
+  final List<double> _currentFrameBuffer = List.filled(72, 0.0);
+
   // Dlib 학습 순서에 맞춘 인덱스 매핑
   static const List<int> _indexMapping = [
     // 1. Nose Bridge (4개)
@@ -44,27 +47,27 @@ class TFLiteService {
     if (_interpreter == null) return null;
 
     final center = meshPoints[168]; // 미간 기준점
-    List<double> currentFrame = [];
+    final double cx = center.x;
+    final double cy = center.y;
 
     // 1. 전처리: 상대 좌표 계산
-    for (int idx in _indexMapping) {
-      final p = meshPoints[idx];
-      currentFrame.add((p.x - center.x) / imgWidth);
-      currentFrame.add((p.y - center.y) / imgHeight);
+    for (int i = 0; i < _indexMapping.length; i++) {
+      final p = meshPoints[_indexMapping[i]];
+      _currentFrameBuffer[i * 2] = (p.x - cx) / imgWidth;
+      _currentFrameBuffer[i * 2 + 1] = (p.y - cy) / imgHeight;
     }
 
     // 2. 슬라이딩 윈도우 업데이트
-    _inputBuffer.add(currentFrame);
+    _inputBuffer.add(List<double>.from(_currentFrameBuffer));
     if (_inputBuffer.length > 25) _inputBuffer.removeAt(0);
     if (_inputBuffer.length < 25) return null; // 25프레임 찰 때까지 대기
 
     try {
       // 3. 💡 [최적화] expand().toList() 대신 고정된 메모리에 값만 복사
       int offset = 0;
-      for (int i = 0; i < _inputBuffer.length; i++) {
-        final frame = _inputBuffer[i];
-        for (int j = 0; j < frame.length; j++) {
-          _inputMatrix[offset++] = frame[j];
+      for (var frame in _inputBuffer) {
+        for (var value in frame) {
+          _inputMatrix[offset++] = value;
         }
       }
 

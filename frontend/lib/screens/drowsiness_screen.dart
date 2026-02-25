@@ -33,6 +33,8 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
   DateTime? _drowsyStartTime;
   bool _isSeverePushed = false; // 경고 화면 중복 이동 방지
   int _frameCount = 0;
+  int _blinkCount = 0; // 전체 깜빡임 횟수
+  bool _isEyeClosed = false; // 현재 눈이 감겨있는 상태인지 체크
 
   // 눈 랜드마크 인덱스 (고정값)
   final List<int> _leftEyeIdx = [160, 144, 158, 153, 33, 133];
@@ -43,21 +45,6 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
     super.initState();
     _audioPlayer.setVolume(1.0);
     _initCamera();
-  }
-
-  void _playBeep() async {
-    try {
-      // 에뮬레이터 부하를 줄이기 위해 재생 전 모드 고정
-      await _audioPlayer.setPlayerMode(PlayerMode.lowLatency);
-      await _audioPlayer.play(AssetSource('sound/beep.mp3'));
-      debugPrint("🔔 비프음 재생 명령 전송됨");
-    } catch (e) {
-      debugPrint("❌ 비프음 재생 에러: $e");
-    }
-  }
-
-  void _stopBeep() async {
-    await _audioPlayer.stop();
   }
 
   /// 카메라 초기화 및 스트림 시작
@@ -110,6 +97,20 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
         final leftEAR = CameraUtils.calculateEAR(mesh.points, _leftEyeIdx);
         final rightEAR = CameraUtils.calculateEAR(mesh.points, _rightEyeIdx);
         final avgEAR = (leftEAR + rightEAR) / 2;
+        // --- 깜빡임 감지 로직 ---
+        // 보통 EAR 0.15~0.2 이하를 감은 것으로 판단합니다.
+        if (avgEAR < 0.15) {
+          _isEyeClosed = true; // 지금 눈을 감고 있음
+        } else {
+          // 눈을 감았다가(true였다가) 다시 떴을 때(0.15 이상이 됐을 때) 카운트 1 증가
+          if (_isEyeClosed) {
+            setState(() {
+              _blinkCount++;
+              _isEyeClosed = false;
+            });
+            debugPrint("✨ 깜빡임 감지! 현재 횟수: $_blinkCount");
+          }
+        }
 
         // 4. TFLite 모델 예측 추가
         // --- 추가된 좌표 변환 로직 ---
@@ -191,7 +192,6 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
           _drowsyStartTime = DateTime.now();
           _warningCountdown = 3;
         });
-        _playBeep();
       } else {
         // 경고 유지 및 카운트다운
         final elapsed = DateTime.now().difference(_drowsyStartTime!).inSeconds;
@@ -211,7 +211,6 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
       // 정상 상태 복귀
       if (_isDrowsy && avgScore < modelLowerThreshold) {
         // 점수가 충분히 낮아지면 해제
-        _stopBeep();
         setState(() {
           _isDrowsy = false;
           _drowsyStartTime = null;
@@ -316,6 +315,7 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       _buildBottomInfo("EAR", _currentEAR.toStringAsFixed(3)),
+                      _buildBottomInfo("BLINK", "$_blinkCount회"), // ✨ 추가
                       _buildBottomInfo(
                         "MODEL",
                         _drowsyScore.toStringAsFixed(3),
@@ -360,12 +360,13 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
   }
 
   Widget _buildBottomInfo(String label, String value) {
+    final bool isWarning = label == "상태" && value == "주의";
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
-        color: surface,
+        color: isWarning ? warnYellow.withAlpha(50) : surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: isWarning ? warnYellow : borderColor),
       ),
       child: Column(
         children: [
