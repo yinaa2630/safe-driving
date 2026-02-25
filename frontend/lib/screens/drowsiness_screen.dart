@@ -210,7 +210,10 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const SevereWarningScreen()),
-          ).then((_) => _isSeverePushed = false);
+          ).then((_) {
+            _isSeverePushed = false;
+            _modelDrowsyCounter = 0;
+          });
         }
       }
     } else {
