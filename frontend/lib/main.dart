@@ -15,6 +15,7 @@ late List<CameraDescription> cameras;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+
   // 1. 카메라 초기화
   try {
     cameras = await availableCameras();
