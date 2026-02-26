@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_demo/theme/colors.dart';
 import 'widgets/monthly_calendar_widget.dart';
+import 'drowsiness_screen.dart';
+import 'package:camera/camera.dart';
 
 class MainScreen extends StatelessWidget {
-  const MainScreen({super.key});
+  final CameraDescription camera;
+
+  const MainScreen({super.key, required this.camera});
 
   @override
   Widget build(BuildContext context) {
@@ -13,11 +17,9 @@ class MainScreen extends StatelessWidget {
           children: [
             Expanded(
               child: SingleChildScrollView(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24.0),
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 20),
 
@@ -42,7 +44,6 @@ class MainScreen extends StatelessWidget {
 
                     const SizedBox(height: 32),
 
-                    // 🔹 주행 시작 카드
                     _buildStartCard(context),
 
                     const SizedBox(height: 32),
@@ -139,7 +140,17 @@ class MainScreen extends StatelessWidget {
                 ),
               ),
               onPressed: () {
-                Navigator.pushNamed(context, '/drowsiness');
+                final startTime = DateTime.now();
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => DrowsinessScreen(
+                      camera: camera,
+                      startTime: startTime,
+                    ),
+                  ),
+                );
               },
               child: const Text(
                 "주행 시작하기",
@@ -158,15 +169,13 @@ class MainScreen extends StatelessWidget {
 
   Widget _buildBottomNav(BuildContext context) {
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: BoxDecoration(
         color: bgWhite,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
-        mainAxisAlignment:
-            MainAxisAlignment.spaceAround,
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           const Icon(
             Icons.home_filled,
@@ -211,12 +220,10 @@ class MainScreen extends StatelessWidget {
         border: Border.all(color: borderColor),
       ),
       child: Row(
-        mainAxisAlignment:
-            MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 date,

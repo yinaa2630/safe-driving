@@ -3,6 +3,8 @@ import 'package:flutter_demo/theme/colors.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../data/drive_repository.dart';
 import '../../models/drive_record.dart';
+import 'package:flutter_demo/data/drive_repository.dart';
+import 'package:flutter_demo/data/mock_drive_data.dart';
 
 enum DriveStatus { none, good, normal, bad }
 
@@ -17,7 +19,7 @@ class _MonthlyCalendarWidgetState extends State<MonthlyCalendarWidget> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
-  final List<DriveRecord> records = DriveRepository.getMockData();
+  final List<DriveRecord> records = MockDriveData.getData();
 
   DriveStatus _getStatus(DateTime day) {
     for (var record in records) {
