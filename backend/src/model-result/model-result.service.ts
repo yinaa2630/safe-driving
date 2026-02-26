@@ -11,6 +11,11 @@ export class ModelResultService {
   ) {}
 
   async create(data: any) {
-    return this.modelResultRepository.save(data);
+    const result = this.modelResultRepository.create({
+      score: data.score,
+      drive_id: data.driveId,
+    });
+
+    return this.modelResultRepository.save(result);
   }
 }

@@ -19,13 +19,6 @@ export class ModelResult {
   @CreateDateColumn({ type: 'timestamp' })
   predicted_at: Date;
 
-  // FK 명시
   @Column()
   drive_id: number;
-
-  @ManyToOne(() => DriveRecord, record => record.modelResults, {
-    onDelete: 'CASCADE',
-  })
-  @JoinColumn({ name: 'drive_id' })
-  driveRecord: DriveRecord;
 }

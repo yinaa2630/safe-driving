@@ -9,8 +9,7 @@ export class ModelResultController {
   async create(@Body() body: any) {
     return this.modelResultService.create({
       score: body.score,
-      predicted_at: body.predicted_at,
-      driveRecord: { id: body.driveId }, // FK 연결
+      driveId: body.driveId, 
     });
   }
 }

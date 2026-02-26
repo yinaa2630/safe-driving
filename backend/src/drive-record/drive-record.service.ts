@@ -11,17 +11,16 @@ export class DriveRecordService {
   ) {}
 
   async create(data: any) {
-  const record = this.driveRecordRepository.create({
-    drive_date: data.drive_date,
-    start_time: data.start_time,
-    end_time: data.end_time,
-    duration: data.duration,
-    avg_drowsiness: data.avg_drowsiness,
-    warning_count: data.warning_count,
+    const record = this.driveRecordRepository.create({
+      drive_date: data.drive_date,
+      start_time: data.start_time,
+      end_time: data.end_time,
+      duration: data.duration,
+      avg_drowsiness: data.avg_drowsiness,
+      warning_count: data.warning_count,
+      user_id: data.userId,   // 숫자 직접 저장
+    });
 
-    user: { id: data.user_id },
-  });
-
-  return this.driveRecordRepository.save(record);
-}
+    return this.driveRecordRepository.save(record);
+  }
 }

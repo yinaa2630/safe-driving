@@ -23,7 +23,4 @@ export class User {
 
   @CreateDateColumn({ type: 'timestamp' })
   created_at: Date;
-
-  @OneToMany(() => DriveRecord, record => record.user)
-  driveRecords: DriveRecord[];
 }
