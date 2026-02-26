@@ -21,18 +21,18 @@ class RestArea {
   RestArea.fromJson(Map<String, dynamic> j)
     : type = j['type'] ?? '',
       name = j['name'] ?? '',
-      latitude = (j['latitude'] as num).toDouble(),
-      longitude = (j['longitude'] as num).toDouble(),
+      latitude = double.tryParse(j['latitude'].toString()) ?? 0.0,
+      longitude = double.tryParse(j['longitude'].toString()) ?? 0.0,
       direction = j['direction'] ?? '',
       roadName = j['road_name'] ?? '',
-      parkingCount = j['parking_count'] ?? 0,
+      parkingCount = int.tryParse(j['parking_count'].toString()) ?? 0,
       hasToilet = j['has_toilet'] ?? false,
       gasStation = j['gas_station'] ?? false,
       evStation = j['ev_station'] ?? false,
-      phone = j['phone'] ?? '',
+      phone = j['phone']?.toString() ?? '',
       distance = (j['distance'] as num).toDouble();
 
-  bool get isDrowsyShelter => type == 'DROWSY_SHELTER';
+  bool get isDrowsyShelter => type == 'DROWSY_AREA';
 }
 
 class MatchingScreen extends StatefulWidget {
@@ -43,7 +43,7 @@ class MatchingScreen extends StatefulWidget {
 }
 
 class _MatchingScreenState extends State<MatchingScreen> {
-  static const String _baseUrl = 'http://192.168.0.22:3000';
+  static const String _baseUrl = 'http://192.168.0.47:3000';
 
   Position? _myPosition;
   List<RestArea> _restAreas = [];
@@ -487,6 +487,7 @@ class _ShelterItem extends StatelessWidget {
         ? const Color(0xFF58A766)
         : const Color(0xFF4C7BD9);
     final icon = isDrowsy ? Icons.eco : Icons.local_parking;
+    final displayName = isDrowsy ? '${area.name} 졸음쉼터' : '${area.name} 휴게소';
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
@@ -519,7 +520,7 @@ class _ShelterItem extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  area.name,
+                  displayName,
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -549,13 +550,13 @@ class _ShelterItem extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 14),
               decoration: BoxDecoration(
-                color: tagColor,
+                color: Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Text(
                 "이동 →",
                 style: TextStyle(
-                  color: tagTextColor,
+                  color: Color(0xFF3F51B5),
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
                 ),

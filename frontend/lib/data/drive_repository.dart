@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class DriveRepository {
-  final String baseUrl = "http://192.168.0.22:3000";
+  final String baseUrl = "http://192.168.0.47:3000";
 
   Future<int?> startDrive(int userId) async {
     final response = await http.post(
