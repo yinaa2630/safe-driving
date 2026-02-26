@@ -10,7 +10,7 @@ export class DriveRecordService {
     private readonly driveRecordRepository: Repository<DriveRecord>,
   ) {}
 
-  async create(data: any) {
+  async create(data: any, userId: number) {
     const record = this.driveRecordRepository.create({
       drive_date: data.drive_date,
       start_time: data.start_time,
@@ -18,7 +18,7 @@ export class DriveRecordService {
       duration: data.duration,
       avg_drowsiness: data.avg_drowsiness,
       warning_count: data.warning_count,
-      user_id: data.userId,   // 숫자 직접 저장
+      user_id: userId,  
     });
 
     return this.driveRecordRepository.save(record);

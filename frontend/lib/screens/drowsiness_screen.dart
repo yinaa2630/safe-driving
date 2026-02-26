@@ -2,16 +2,22 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter_demo/screens/severe_warning_screen.dart';
+import 'package:flutter_demo/screens/drive_complete_screen.dart';
 import 'package:flutter_demo/service/face_mesh_service.dart';
 import 'package:flutter_demo/service/tflite_service.dart';
-import 'package:flutter_demo/theme/colors.dart';
+import 'package:flutter_demo/service/drive_record_service.dart';
 import 'package:flutter_demo/utils/camera_utils.dart';
 import 'package:google_mlkit_face_mesh_detection/google_mlkit_face_mesh_detection.dart';
 
 class DrowsinessScreen extends StatefulWidget {
   final CameraDescription camera;
+  final DateTime startTime;
 
-  const DrowsinessScreen({super.key, required this.camera});
+  const DrowsinessScreen({
+    super.key,
+    required this.camera,
+    required this.startTime,
+  });
 
   @override
   State<DrowsinessScreen> createState() => _DrowsinessScreenState();
@@ -19,24 +25,26 @@ class DrowsinessScreen extends StatefulWidget {
 
 class _DrowsinessScreenState extends State<DrowsinessScreen> {
   late CameraController _controller;
+
   final FaceMeshService _meshService = FaceMeshService();
   final TFLiteService _tfLiteService = TFLiteService();
+  final DriveRecordService _driveService = DriveRecordService();
   final AudioPlayer _audioPlayer = AudioPlayer();
-  final List<double> _scoreHistory = []; // 점수 평균을 위한 리스트
+
+  final List<double> _scoreHistory = [];
 
   bool _isProcessing = false;
-  double _currentEAR = 0.0; // face mesh 에서 판단한 EAR 지수
-  int _modelDrowsyCounter = 0; // 모델 점수 지속 확인용
-  double _drowsyScore = 0.0; // 모델이 판단한 졸음 확률
-  bool _isDrowsy = false;
-  int _warningCountdown = 3;
-  DateTime? _drowsyStartTime;
-  bool _isSeverePushed = false; // 경고 화면 중복 이동 방지
-  int _frameCount = 0;
-  int _blinkCount = 0; // 전체 깜빡임 횟수
-  bool _isEyeClosed = false; // 현재 눈이 감겨있는 상태인지 체크
+  double _currentEAR = 0.0;
+  double _drowsyScore = 0.0;
 
-  // 눈 랜드마크 인덱스 (고정값)
+  int _modelDrowsyCounter = 0;
+  int _frameCount = 0;
+  int _blinkCount = 0;
+  int _severeCount = 0;
+
+  bool _isEyeClosed = false;
+  bool _isSeverePushed = false;
+
   final List<int> _leftEyeIdx = [160, 144, 158, 153, 33, 133];
   final List<int> _rightEyeIdx = [385, 380, 387, 373, 263, 362];
 
@@ -47,7 +55,6 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
     _initCamera();
   }
 
-  /// 카메라 초기화 및 스트림 시작
   void _initCamera() async {
     _controller = CameraController(
       widget.camera,
@@ -60,9 +67,7 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
       await _controller.initialize();
       if (!mounted) return;
 
-      // 2. 카메라가 안정적으로 뜬 후에 모델 로드 (비동기)
       await _tfLiteService.loadModel();
-
       setState(() {});
       _controller.startImageStream(_processCameraImage);
     } catch (e) {
@@ -70,82 +75,66 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
     }
   }
 
-  /// 실시간 이미지 처리 루프
   void _processCameraImage(CameraImage image) async {
     if (_isProcessing) return;
-    // 2프레임당 1번만 처리
+
     _frameCount++;
     if (_frameCount % 2 != 0) return;
 
     _isProcessing = true;
 
     try {
-      // 1. 이미지 변환 (CameraUtils 사용)
-      final inputImage = CameraUtils.convertCameraImageToInputImage(
-        image,
-        widget.camera,
-      );
+      final inputImage =
+          CameraUtils.convertCameraImageToInputImage(image, widget.camera);
 
-      // 2. 얼굴 메시 감지 (FaceMeshService 사용)
       final meshes = await _meshService.detectMesh(inputImage);
 
       if (meshes.isNotEmpty) {
         final mesh = meshes.first;
 
-        // 3. EAR 계산 (CameraUtils 사용)
-        final leftEAR = CameraUtils.calculateEAR(mesh.points, _leftEyeIdx);
-        final rightEAR = CameraUtils.calculateEAR(mesh.points, _rightEyeIdx);
+        final leftEAR =
+            CameraUtils.calculateEAR(mesh.points, _leftEyeIdx);
+        final rightEAR =
+            CameraUtils.calculateEAR(mesh.points, _rightEyeIdx);
+
         final avgEAR = (leftEAR + rightEAR) / 2;
-        // --- 깜빡임 감지 로직 ---
-        // 보통 EAR 0.15~0.2 이하를 감은 것으로 판단합니다.
+
         if (avgEAR < 0.15) {
-          _isEyeClosed = true; // 지금 눈을 감고 있음
+          _isEyeClosed = true;
         } else {
-          // 눈을 감았다가(true였다가) 다시 떴을 때(0.15 이상이 됐을 때) 카운트 1 증가
           if (_isEyeClosed) {
-            setState(() {
-              _blinkCount++;
-              _isEyeClosed = false;
-            });
-            debugPrint("✨ 깜빡임 감지! 현재 횟수: $_blinkCount");
+            _blinkCount++;
+            _isEyeClosed = false;
           }
         }
 
-        // 4. TFLite 모델 예측 추가
-        // --- 추가된 좌표 변환 로직 ---
-        // 모델 학습 기준: 720 x 1280
         const double targetWidth = 720.0;
         const double targetHeight = 1280.0;
 
-        // 현재 카메라가 가로형인지 세로형인지 상관없이
-        // "긴 축은 긴 축끼리, 짧은 축은 짧은 축끼리" 매칭해야 좌표가 안 찌그러집니다.
-        final double srcW = (image.width > image.height)
-            ? image.height.toDouble()
-            : image.width.toDouble();
-        final double srcH = (image.width > image.height)
-            ? image.width.toDouble()
-            : image.height.toDouble();
-        // 좌표 스케일링: 현재 좌표 * (타겟 해상도 / 현재 해상도)
-        // List<FaceMeshPoint> 타입을 유지하며 내부 값만 변경
-        final List<FaceMeshPoint> scaledPoints = mesh.points.map((pt) {
+        final double srcW =
+            (image.width > image.height)
+                ? image.height.toDouble()
+                : image.width.toDouble();
+        final double srcH =
+            (image.width > image.height)
+                ? image.width.toDouble()
+                : image.height.toDouble();
+
+        final scaledPoints = mesh.points.map((pt) {
           return FaceMeshPoint(
             index: pt.index,
             x: pt.x * (targetWidth / srcW),
             y: pt.y * (targetHeight / srcH),
-            // 만약 z축(깊이)이나 다른 속성이 있다면 그대로 복사
             z: pt.z,
           );
         }).toList();
-        // -------------------------
 
-        // 변환된 scaledPoints를 모델에 전달
         final score = _tfLiteService.predict(
           scaledPoints,
-          targetWidth, // 이제 항상 720
-          targetHeight, // 이제 항상 1280
+          targetWidth,
+          targetHeight,
         );
 
-        // 5. 상태 업데이트 및 졸음 판정
         _updateUI(avgEAR, score);
       }
     } catch (e) {
@@ -155,83 +144,55 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
     }
   }
 
-  void _updateUI(double ear, double? score) async {
-    const double modelUpperThreshold = 0.5; // 이 점수 넘으면 졸음 의심
-    const double modelLowerThreshold = 0.4; // 이 점수 밑으로 내려가야 안심
+  void _updateUI(double ear, double? score) {
+    const double upper = 0.5;
+    const double lower = 0.4;
 
-    // 1. 모델 점수 안정화 (이동 평균)
     if (score != null) {
       _scoreHistory.add(score);
-      if (_scoreHistory.length > 5) _scoreHistory.removeAt(0); // 최근 25프레임 평균
+      if (_scoreHistory.length > 5) {
+        _scoreHistory.removeAt(0);
+      }
     }
 
-    // 단순 평균 대신 가중치 부여
-    double weightedSum = 0;
-    double weightTotal = 0;
-    for (int i = 0; i < _scoreHistory.length; i++) {
-      double weight = (i + 1).toDouble(); // 최근 데이터일수록 가중치 증가
-      weightedSum += _scoreHistory[i] * weight;
-      weightTotal += weight;
+    double avgScore = 0.0;
+    if (_scoreHistory.isNotEmpty) {
+      avgScore =
+          _scoreHistory.reduce((a, b) => a + b) /
+          _scoreHistory.length;
     }
-
-    double avgScore = _scoreHistory.isEmpty ? 0.0 : weightedSum / weightTotal;
 
     setState(() {
       _currentEAR = ear;
-      _drowsyScore = avgScore; // 화면에는 부드러운 평균 점수 표시
+      _drowsyScore = avgScore;
     });
 
-    // 2. 모델 판정 (점수가 높게 유지되는지 체크)
-    if (avgScore > modelUpperThreshold) {
+    if (avgScore > upper) {
       _modelDrowsyCounter++;
-    } else if (avgScore < modelLowerThreshold) {
-      _modelDrowsyCounter = 0; // 확실히 눈을 떠야 초기화
+    } else if (avgScore < lower) {
+      _modelDrowsyCounter = 0;
     }
 
-    bool modelDrowsy = _modelDrowsyCounter >= 5;
+    if (_modelDrowsyCounter >= 5 && !_isSeverePushed) {
+      _isSeverePushed = true;
+      _severeCount++;
 
-    if (modelDrowsy) {
-      if (!_isDrowsy) {
-        // *** 경고 진입 ***
-        setState(() {
-          _isDrowsy = true;
-          _drowsyStartTime = DateTime.now();
-          _warningCountdown = 3;
-        });
-      } else {
-        // 경고 유지 및 카운트다운
-        final elapsed = DateTime.now().difference(_drowsyStartTime!).inSeconds;
-        setState(() {
-          _warningCountdown = (3 - elapsed).clamp(0, 3);
-        });
-
-        if (elapsed >= 3 && !_isSeverePushed) {
-          _isSeverePushed = true;
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const SevereWarningScreen()),
-          ).then((_) {
-            _isSeverePushed = false;
-            _modelDrowsyCounter = 0; // 카운터 초기화
-            _scoreHistory.clear(); // 점수 히스토리 완전 삭제
-            _drowsyScore = 0.0; // 표시되는 점수 초기화
-            _isDrowsy = false; // 졸음 상태 해제
-            _drowsyStartTime = null; // 시작 시간 초기화
-            _isEyeClosed = false; // 눈깜빡임 상태 초기화
-          });
-        }
-      }
-    } else {
-      // 정상 상태 복귀
-      if (_isDrowsy && avgScore < modelLowerThreshold) {
-        // 점수가 충분히 낮아지면 해제
-        setState(() {
-          _isDrowsy = false;
-          _drowsyStartTime = null;
-          _warningCountdown = 3;
-        });
-      }
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const SevereWarningScreen(),
+        ),
+      ).then((_) {
+        _modelDrowsyCounter = 0;
+        _isSeverePushed = false;
+      });
     }
+  }
+
+  String _getStatusText() {
+    if (_drowsyScore > 0.5) return "위험";
+    if (_drowsyScore > 0.4) return "주의";
+    return "정상";
   }
 
   @override
@@ -245,121 +206,76 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
   @override
   Widget build(BuildContext context) {
     if (!_controller.value.isInitialized) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
     }
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // ---------------------------
-          // 1) 카메라 화면 (배경 전체)
-          // ---------------------------
           Positioned.fill(
-            child: FittedBox(
-              fit: BoxFit.cover,
-              child: SizedBox(
-                width: _controller.value.previewSize!.height,
-                height: _controller.value.previewSize!.width,
-                child: CameraPreview(_controller),
-              ),
-            ),
+            child: CameraPreview(_controller),
           ),
-
-          // ---------------------------
-          // 3) 상단 상태바 - "감지 중"
-          // ---------------------------
           Positioned(
-            top: 60,
-            left: 20,
-            child: Row(
-              children: [
-                Icon(Icons.circle, size: 12, color: Color(0xFF1DB954)),
-                const SizedBox(width: 8),
-                const Text(
-                  "감지 중",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // ---------------------------
-          // 5) 하단 바텀 시트
-          // ---------------------------
-          Positioned(
+            bottom: 0,
             left: 0,
             right: 0,
-            bottom: 0,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-              decoration: BoxDecoration(
+              padding: const EdgeInsets.all(24),
+              decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(28),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    offset: const Offset(0, -2),
-                    blurRadius: 8,
-                  ),
-                ],
+                borderRadius:
+                    BorderRadius.vertical(top: Radius.circular(28)),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 작은 바
-                  Container(
-                    width: 42,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: Colors.black12,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // 3개 정보 박스
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment:
+                        MainAxisAlignment.spaceBetween,
                     children: [
-                      _buildBottomInfo("EAR", _currentEAR.toStringAsFixed(3)),
-                      _buildBottomInfo("졸린눈", "$_blinkCount회"), // ✨ 추가
-                      _buildBottomInfo("졸음수치", _drowsyScore.toStringAsFixed(3)),
-                      _buildBottomInfo("상태", _isDrowsy ? "주의" : "정상"),
+                      _buildInfo("EAR", _currentEAR.toStringAsFixed(3)),
+                      _buildInfo("깜빡임", "$_blinkCount회"),
+                      _buildInfo("MODEL", _drowsyScore.toStringAsFixed(3)),
+                      _buildInfo("상태", _getStatusText()),
                     ],
                   ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final endTime = DateTime.now();
+                      final duration =
+                          endTime.difference(widget.startTime);
 
-                  const SizedBox(height: 26),
+                      final success =
+                          await _driveService.createDriveRecord(
+                        driveDate: widget.startTime
+                            .toIso8601String()
+                            .split("T")[0],
+                        startTime: widget.startTime,
+                        endTime: endTime,
+                        duration: duration.inSeconds,
+                        avgDrowsiness: _drowsyScore,
+                        warningCount: _severeCount,
+                      );
 
-                  // 운전 종료 버튼
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pushNamed(context, '/complete');
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: const Text(
-                        "운전 종료",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                      if (success) {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                DriveCompleteScreen(
+                                    duration: duration),
+                          ),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
                     ),
+                    child: const Text("운전 종료"),
                   ),
                 ],
               ),
@@ -370,36 +286,17 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
     );
   }
 
-  Widget _buildBottomInfo(String label, String value) {
-    final bool isWarning = label == "상태" && value == "주의";
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-      decoration: BoxDecoration(
-        color: isWarning ? warnYellow.withAlpha(50) : surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: isWarning ? warnYellow : borderColor),
-      ),
-      child: Column(
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFF6B6B78),
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.black,
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
+  Widget _buildInfo(String label, String value) {
+    return Column(
+      children: [
+        Text(label),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style:
+              const TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ],
     );
   }
 }
