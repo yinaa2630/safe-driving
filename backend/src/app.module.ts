@@ -4,12 +4,16 @@ import { ConfigModule } from '@nestjs/config';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { User } from './user/user.entity';
-import { RestArea } from './rest-area/rest-area.entity';
-import { ServiceStation } from './service-station/service-station.entity';
+
 import { AuthModule } from './auth/auth.module';
-import { RestAreaModule } from './rest-area/rest-area.module';
+import { DriveRecordModule } from './drive-record/drive-record.module';
+import { ModelResultModule } from './model-result/model-result.module';
 import { ServiceStationModule } from './service-station/service-station.module';
+import { RestAreaModule } from './rest-area/rest-area.module';
+
+import { User } from './user/user.entity';
+import { DriveRecord } from './drive-record/drive-record.entity';
+import { ModelResult } from './model-result/model-result.entity';
 
 @Module({
   imports: [
@@ -24,13 +28,17 @@ import { ServiceStationModule } from './service-station/service-station.module';
       username: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      entities: [User, RestArea, ServiceStation],
-      synchronize: false,
+
+      entities: [User, DriveRecord, ModelResult], 
+
+      synchronize: false, 
     }),
 
     AuthModule,
-    RestAreaModule,
+    DriveRecordModule,
+    ModelResultModule,
     ServiceStationModule,
+    RestAreaModule,
   ],
   controllers: [AppController],
   providers: [AppService],

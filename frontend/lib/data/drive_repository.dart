@@ -5,7 +5,7 @@ class DriveRepository {
     return [
       DriveRecord(
         date: DateTime(2026, 2, 18),
-        score: 60,
+        score: 6,
         duration: const Duration(minutes: 48),
       ),
       DriveRecord(

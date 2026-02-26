@@ -12,6 +12,8 @@ import { User } from '../user/user.entity';
 
 @Module({
   imports: [
+    ConfigModule,  
+
     PassportModule,
     TypeOrmModule.forFeature([User]),
 
