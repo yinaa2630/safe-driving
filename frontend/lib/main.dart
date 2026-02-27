@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import 'package:flutter_demo/screens/drive_complete_screen.dart';
 import 'package:flutter_demo/screens/login_screen.dart';
 import 'package:flutter_demo/screens/main_screen.dart';
 import 'package:flutter_demo/screens/matching_screen.dart';
@@ -54,6 +55,7 @@ class MyApp extends StatelessWidget {
         '/main': (context) => MainScreen(camera: selectedCamera),
         '/matching': (context) => MatchingScreen(),
         '/profile': (context) => const ProfileScreen(),
+        '/complete': (context) => const DriveCompleteScreen(),
       },
     );
   }

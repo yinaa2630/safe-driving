@@ -1,18 +1,14 @@
 import 'package:flutter/material.dart';
 
 class DriveCompleteScreen extends StatelessWidget {
-  final Duration duration;
-
-  const DriveCompleteScreen({
-    super.key,
-    required this.duration,
-  });
+  const DriveCompleteScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final minutes = duration.inMinutes;
-    final seconds = duration.inSeconds % 60;
-
+    // 더미 데이터
+    // TODO : 서버에서 주행 결과 가져오기
+    final minutes = 10;
+    final seconds = 1;
     return Scaffold(
       backgroundColor: const Color(0xFFF4F4F4),
       body: Center(
@@ -21,29 +17,19 @@ class DriveCompleteScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.check_circle,
-                size: 110,
-                color: Colors.green,
-              ),
+              const Icon(Icons.check_circle, size: 110, color: Colors.green),
               const SizedBox(height: 24),
 
               const Text(
                 "주행이 완료되었어요!",
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
 
               const SizedBox(height: 12),
-
+              // TODO : 주의, 경고 카운트에 따라 문구 다르게 해야함
               const Text(
                 "오늘도 안전 운전 하셨어요.",
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
-                ),
+                style: TextStyle(fontSize: 16, color: Colors.grey),
               ),
 
               const SizedBox(height: 32),
@@ -78,7 +64,7 @@ class DriveCompleteScreen extends StatelessWidget {
                 height: 50,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.popUntil(context, (route) => route.isFirst);
+                    Navigator.pushNamed(context, '/main');
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.black,
@@ -88,7 +74,7 @@ class DriveCompleteScreen extends StatelessWidget {
                   ),
                   child: const Text(
                     "홈으로 돌아가기",
-                    style: TextStyle(fontSize: 16),
+                    style: TextStyle(color: Colors.white, fontSize: 16),
                   ),
                 ),
               ),
@@ -107,18 +93,12 @@ class DriveCompleteScreen extends StatelessWidget {
           children: [
             Icon(icon, color: Colors.green),
             const SizedBox(width: 10),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 16),
-            ),
+            Text(title, style: const TextStyle(fontSize: 16)),
           ],
         ),
         Text(
           value,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ],
     );
