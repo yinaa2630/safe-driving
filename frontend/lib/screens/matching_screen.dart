@@ -1,39 +1,7 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_demo/service/matching_service.dart';
+import 'package:flutter_demo/theme/colors.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:http/http.dart' as http;
-import 'package:url_launcher/url_launcher.dart';
-
-class RestArea {
-  final String type;
-  final String name;
-  final double latitude;
-  final double longitude;
-  final String direction;
-  final String roadName;
-  final int parkingCount;
-  final bool hasToilet;
-  final bool gasStation;
-  final bool evStation;
-  final String phone;
-  final double distance;
-
-  RestArea.fromJson(Map<String, dynamic> j)
-    : type = j['type'] ?? '',
-      name = j['name'] ?? '',
-      latitude = double.tryParse(j['latitude'].toString()) ?? 0.0,
-      longitude = double.tryParse(j['longitude'].toString()) ?? 0.0,
-      direction = j['direction'] ?? '',
-      roadName = j['road_name'] ?? '',
-      parkingCount = int.tryParse(j['parking_count'].toString()) ?? 0,
-      hasToilet = j['has_toilet'] ?? false,
-      gasStation = j['gas_station'] ?? false,
-      evStation = j['ev_station'] ?? false,
-      phone = j['phone']?.toString() ?? '',
-      distance = (j['distance'] as num).toDouble();
-
-  bool get isDrowsyShelter => type == 'DROWSY_AREA';
-}
 
 class MatchingScreen extends StatefulWidget {
   const MatchingScreen({super.key});
@@ -43,7 +11,7 @@ class MatchingScreen extends StatefulWidget {
 }
 
 class _MatchingScreenState extends State<MatchingScreen> {
-  static const String _baseUrl = 'http://192.168.0.22:3000';
+  final matchingService = MatchingService();
 
   Position? _myPosition;
   List<RestArea> _restAreas = [];
@@ -62,56 +30,17 @@ class _MatchingScreenState extends State<MatchingScreen> {
       _error = null;
     });
     try {
-      final pos = await _getLocation();
+      final pos = await matchingService.getCurrentLocation();
       setState(() => _myPosition = pos);
-      await _fetchRestAreas(pos.latitude, pos.longitude);
+      final response = await matchingService.getRestAreas(
+        pos.latitude,
+        pos.longitude,
+      );
+      _restAreas = response.map((e) => RestArea.fromJson(e)).toList();
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
       setState(() => _isLoading = false);
-    }
-  }
-
-  Future<Position> _getLocation() async {
-    if (!await Geolocator.isLocationServiceEnabled())
-      throw Exception('위치 서비스가 꺼져 있어요.');
-    var perm = await Geolocator.checkPermission();
-    if (perm == LocationPermission.denied)
-      perm = await Geolocator.requestPermission();
-    if (perm == LocationPermission.denied ||
-        perm == LocationPermission.deniedForever)
-      throw Exception('위치 권한이 필요해요.');
-    return Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );
-  }
-
-  Future<void> _fetchRestAreas(double lat, double lng) async {
-    final uri = Uri.parse(
-      '$_baseUrl/rest-area/nearest?lat=$lat&lng=$lng&bearing=0&limit=3',
-    );
-    final res = await http.get(uri).timeout(const Duration(seconds: 10));
-    if (res.statusCode == 200) {
-      final list = jsonDecode(res.body) as List;
-      setState(() {
-        _restAreas = list.map((e) => RestArea.fromJson(e)).toList();
-      });
-    } else {
-      throw Exception('데이터 오류 (${res.statusCode})');
-    }
-  }
-
-  Future<void> _navigateTo(RestArea area) async {
-    final appUri = Uri.parse(
-      'kakaomap://route?ep=${area.latitude},${area.longitude}&by=CAR',
-    );
-    final webUri = Uri.parse(
-      'https://map.kakao.com/link/to/${Uri.encodeComponent(area.name)},${area.latitude},${area.longitude}',
-    );
-    if (await canLaunchUrl(appUri)) {
-      await launchUrl(appUri);
-    } else {
-      await launchUrl(webUri, mode: LaunchMode.externalApplication);
     }
   }
 
@@ -148,7 +77,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
         ],
       ),
     );
-    if (ok == true) await _navigateTo(area);
+    if (ok == true) await matchingService.navigateKakao(area);
   }
 
   @override
@@ -321,7 +250,7 @@ class _TopLocationPanel extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
+                        color: Colors.white.withAlpha(20),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
@@ -337,10 +266,10 @@ class _TopLocationPanel extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.12),
+                  color: Colors.white.withAlpha(20),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withAlpha(20),
                     width: 1,
                   ),
                 ),
@@ -350,7 +279,7 @@ class _TopLocationPanel extends StatelessWidget {
                       width: 52,
                       height: 52,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withAlpha(50),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
@@ -369,7 +298,7 @@ class _TopLocationPanel extends StatelessWidget {
                                   height: 14,
                                   width: 120,
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.3),
+                                    color: Colors.white.withAlpha(30),
                                     borderRadius: BorderRadius.circular(7),
                                   ),
                                 ),
@@ -378,7 +307,7 @@ class _TopLocationPanel extends StatelessWidget {
                                   height: 12,
                                   width: 180,
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
+                                    color: Colors.white.withAlpha(100),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                 ),
@@ -415,7 +344,7 @@ class _TopLocationPanel extends StatelessWidget {
                                 Text(
                                   '정확도 ${position!.accuracy.toStringAsFixed(0)}m',
                                   style: TextStyle(
-                                    color: Colors.white.withOpacity(0.6),
+                                    color: Colors.white70,
                                     fontSize: 11,
                                   ),
                                 ),
@@ -429,8 +358,8 @@ class _TopLocationPanel extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: position != null
-                            ? const Color(0xFF4CAF50).withOpacity(0.3)
-                            : Colors.orange.withOpacity(0.3),
+                            ? mainGreen.withAlpha(40)
+                            : warnYellow.withAlpha(40),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Row(
@@ -440,9 +369,7 @@ class _TopLocationPanel extends StatelessWidget {
                             width: 6,
                             height: 6,
                             decoration: BoxDecoration(
-                              color: position != null
-                                  ? const Color(0xFF4CAF50)
-                                  : Colors.orange,
+                              color: position != null ? mainGreen : warnYellow,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -450,9 +377,7 @@ class _TopLocationPanel extends StatelessWidget {
                           Text(
                             position != null ? 'GPS' : '...',
                             style: TextStyle(
-                              color: position != null
-                                  ? const Color(0xFF4CAF50)
-                                  : Colors.orange,
+                              color: position != null ? mainGreen : warnYellow,
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                             ),
@@ -481,11 +406,9 @@ class _ShelterItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDrowsy = area.isDrowsyShelter;
     final tagColor = isDrowsy
-        ? const Color(0xFFDFF6DD)
-        : const Color(0xFFE8F1FF);
-    final tagTextColor = isDrowsy
-        ? const Color(0xFF58A766)
-        : const Color(0xFF4C7BD9);
+        ? mainGreen.withAlpha(4)
+        : infoLightBlue.withAlpha(4);
+    final tagTextColor = isDrowsy ? mainGreen : infoLightBlue;
     final icon = isDrowsy ? Icons.eco : Icons.local_parking;
     final displayName = isDrowsy ? '${area.name} 졸음쉼터' : '${area.name} 휴게소';
 
@@ -498,7 +421,7 @@ class _ShelterItem extends StatelessWidget {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: inkBlack.withAlpha(4),
             blurRadius: 6,
             offset: const Offset(0, 4),
           ),
@@ -509,7 +432,7 @@ class _ShelterItem extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: tagColor.withOpacity(0.4),
+              color: tagColor.withAlpha(40),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Icon(icon, size: 28, color: tagTextColor),
@@ -529,7 +452,7 @@ class _ShelterItem extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   '${area.distance.toStringAsFixed(1)}km · ${area.roadName} ${area.direction}',
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 13, color: textMedium),
                 ),
                 const SizedBox(height: 6),
                 Row(
@@ -556,7 +479,7 @@ class _ShelterItem extends StatelessWidget {
               child: Text(
                 "이동 →",
                 style: TextStyle(
-                  color: Color(0xFF3F51B5),
+                  color: infoBlue,
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
                 ),
@@ -581,7 +504,7 @@ class _MiniChip extends StatelessWidget {
       margin: const EdgeInsets.only(right: 4),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withAlpha(10),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(label, style: TextStyle(fontSize: 10, color: color)),
