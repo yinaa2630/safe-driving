@@ -1,6 +1,7 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_demo/theme/colors.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SevereWarningScreen extends StatefulWidget {
   const SevereWarningScreen({super.key});
@@ -31,6 +32,16 @@ class _SevereWarningScreenState extends State<SevereWarningScreen> {
 
   void _stopBeep() async {
     await _audioPlayer.stop();
+  }
+
+  Future<void> makePhoneCall(String phoneNumber) async {
+    final Uri url = Uri(scheme: 'tel', path: phoneNumber);
+
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url);
+    } else {
+      print('전화 앱을 열 수 없습니다.');
+    }
   }
 
   @override
@@ -70,7 +81,7 @@ class _SevereWarningScreenState extends State<SevereWarningScreen> {
 
             SizedBox(height: 40),
 
-            // 빨간 버튼
+            // 가까운 휴게소 찾기 버튼
             SizedBox(
               width: 240,
               height: 52,
@@ -93,6 +104,34 @@ class _SevereWarningScreenState extends State<SevereWarningScreen> {
                 },
                 child: Text(
                   "🚨 가까운 휴게소 찾기",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+
+            SizedBox(height: 12),
+
+            // 전화걸기 버튼
+            SizedBox(
+              width: 240,
+              height: 52,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: warnYellow,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () {
+                  // TODO : 전화번호의 경우 userInfo에서 받아와야함(로그인시 provider로 관리할지?)
+                  makePhoneCall('01012345678');
+                },
+                child: Text(
+                  "📞 비상 연락하기",
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 16,
