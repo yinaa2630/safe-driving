@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class DriveRepository {
-  final String baseUrl = "http://192.168.0.47:3000";
+  final String baseUrl = "http://192.168.0.22:3000";
 
   Future<int?> startDrive(int userId) async {
     final response = await http.post(
@@ -27,9 +27,7 @@ class DriveRepository {
     await http.patch(
       Uri.parse("$baseUrl/drive-record/$driveId"),
       headers: {"Content-Type": "application/json"},
-      body: jsonEncode({
-        "end_time": DateTime.now().toIso8601String(),
-      }),
+      body: jsonEncode({"end_time": DateTime.now().toIso8601String()}),
     );
   }
 }

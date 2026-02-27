@@ -43,7 +43,7 @@ class MatchingScreen extends StatefulWidget {
 }
 
 class _MatchingScreenState extends State<MatchingScreen> {
-  static const String _baseUrl = 'http://192.168.0.47:3000';
+  static const String _baseUrl = 'http://192.168.0.22:3000';
 
   Position? _myPosition;
   List<RestArea> _restAreas = [];

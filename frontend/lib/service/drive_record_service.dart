@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class DriveRecordService {
-  final String baseUrl = "http://192.168.0.47:3000";
+  final String baseUrl = "http://192.168.0.22:3000";
   final FlutterSecureStorage storage = const FlutterSecureStorage();
 
   Future<bool> createDriveRecord({
@@ -35,7 +35,7 @@ class DriveRecordService {
           "duration": duration,
           "avg_drowsiness": avgDrowsiness,
           "warning_count": warningCount,
-          "userId":1, 
+          "userId": 1,
         }),
       );
 

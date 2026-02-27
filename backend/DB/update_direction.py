@@ -3,7 +3,7 @@ import psycopg2
 
 # DB 연결
 conn = psycopg2.connect(
-    host="192.168.0.47",
+    host="192.168.0.22",
     port=5432,
     database="safe_driving",
     user="team",
