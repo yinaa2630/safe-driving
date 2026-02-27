@@ -12,13 +12,18 @@ export class DriveRecordService {
 
   async create(data: any, userId: number) {
     const record = this.driveRecordRepository.create({
-      drive_date: data.drive_date,
-      start_time: data.start_time,
-      end_time: data.end_time,
+      driveDate: data.driveDate,           
+      startTime: data.startTime,           
+      endTime: data.endTime,               
       duration: data.duration,
-      avg_drowsiness: data.avg_drowsiness,
-      warning_count: data.warning_count,
-      user_id: userId,  
+      avgDrowsiness: data.avgDrowsiness,   
+      warningCount: data.warningCount,     
+      attentionCount: data.attentionCount ?? 0,  
+      userId: userId,                    
+      startLat: data.startLat,           
+      startLng: data.startLng,           
+      endLat: data.endLat,                
+      endLng: data.endLng,              
     });
 
     return this.driveRecordRepository.save(record);

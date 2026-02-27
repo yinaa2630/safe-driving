@@ -23,4 +23,7 @@ export class User {
 
   @CreateDateColumn({ type: 'timestamp' })
   created_at: Date;
+
+  @Column({ name: 'emergency_call', nullable: false })
+  emergencyCall: string;
 }

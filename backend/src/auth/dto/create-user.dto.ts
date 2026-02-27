@@ -12,4 +12,7 @@ export class CreateUserDto {
   @IsString()
   @MinLength(2)
   username: string;
+
+  @IsString()
+  emergencyCall: string;
 }

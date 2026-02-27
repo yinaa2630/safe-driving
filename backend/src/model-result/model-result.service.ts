@@ -1,21 +1,24 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ModelResult } from './model-result.entity';
-
+import { DriveEvent } from './model-result.entity';
 @Injectable()
 export class ModelResultService {
   constructor(
-    @InjectRepository(ModelResult)
-    private readonly modelResultRepository: Repository<ModelResult>,
+    @InjectRepository(DriveEvent)                    
+    private readonly driveEventRepository: Repository<DriveEvent>,
   ) {}
 
   async create(data: any) {
-    const result = this.modelResultRepository.create({
+    const result = this.driveEventRepository.create({
+      driveRecordId: data.driveRecordId,   
+      eventType: data.eventType,           
+      eventTime: data.eventTime,           
+      lat: data.lat,                      
+      lng: data.lng,                     
       score: data.score,
-      drive_id: data.driveId,
     });
 
-    return this.modelResultRepository.save(result);
+    return this.driveEventRepository.save(result);
   }
 }
