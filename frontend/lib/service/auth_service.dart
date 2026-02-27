@@ -7,7 +7,12 @@ class AuthService {
   final FlutterSecureStorage storage = const FlutterSecureStorage();
 
   // 회원가입
-  Future<String?> register(String email, String password, String name) async {
+  Future<String?> register(
+    String email,
+    String password,
+    String name,
+    String emergencyCall,
+  ) async {
     try {
       final response = await http
           .post(
@@ -17,6 +22,7 @@ class AuthService {
               "email": email,
               "password": password,
               "username": name,
+              "emergencyCall": emergencyCall,
             }),
           )
           .timeout(const Duration(seconds: 5));
