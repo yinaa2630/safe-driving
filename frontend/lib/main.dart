@@ -8,6 +8,7 @@ import 'package:flutter_demo/screens/signup_screen.dart';
 import 'package:flutter_demo/theme/colors.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_demo/screens/profile_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 late List<CameraDescription> cameras;
 
@@ -24,7 +25,9 @@ void main() async {
   const storage = FlutterSecureStorage();
   final String? token = await storage.read(key: 'user_token');
 
-  runApp(MyApp(initialRoute: (token != null) ? '/main' : '/'));
+  runApp(
+    ProviderScope(child: MyApp(initialRoute: (token != null) ? '/main' : '/')),
+  );
 }
 
 class MyApp extends StatelessWidget {
