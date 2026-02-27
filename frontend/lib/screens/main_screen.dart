@@ -36,10 +36,7 @@ class MainScreen extends StatelessWidget {
 
                     const Text(
                       "오늘도 안전하게 운전해볼까요?",
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: textMedium,
-                      ),
+                      style: TextStyle(fontSize: 14, color: textMedium),
                     ),
 
                     const SizedBox(height: 32),
@@ -115,18 +112,12 @@ class MainScreen extends StatelessWidget {
         children: [
           const Text(
             "주행 보조 시작",
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-            ),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
           const Text(
             "AI가 운전 중 졸음을 실시간으로 감지해 알려드려요.",
-            style: TextStyle(
-              fontSize: 14,
-              color: textMedium,
-            ),
+            style: TextStyle(fontSize: 14, color: textMedium),
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -142,13 +133,12 @@ class MainScreen extends StatelessWidget {
               onPressed: () {
                 final startTime = DateTime.now();
 
+                // TODO : 해당 startTime 을 서버로 전송
+
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => DrowsinessScreen(
-                      camera: camera,
-                      startTime: startTime,
-                    ),
+                    builder: (_) => DrowsinessScreen(camera: camera),
                   ),
                 );
               },
@@ -177,30 +167,18 @@ class MainScreen extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          const Icon(
-            Icons.home_filled,
-            color: mainGreen,
-            size: 30,
-          ),
+          const Icon(Icons.home_filled, color: mainGreen, size: 30),
           IconButton(
             onPressed: () {
               Navigator.pushNamed(context, '/matching');
             },
-            icon: const Icon(
-              Icons.map,
-              color: textMedium,
-              size: 28,
-            ),
+            icon: const Icon(Icons.map, color: textMedium, size: 28),
           ),
           IconButton(
             onPressed: () {
               Navigator.pushNamed(context, '/profile');
             },
-            icon: const Icon(
-              Icons.person,
-              color: textMedium,
-              size: 28,
-            ),
+            icon: const Icon(Icons.person, color: textMedium, size: 28),
           ),
         ],
       ),
@@ -236,10 +214,7 @@ class MainScreen extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 duration,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: textMedium,
-                ),
+                style: const TextStyle(fontSize: 13, color: textMedium),
               ),
             ],
           ),

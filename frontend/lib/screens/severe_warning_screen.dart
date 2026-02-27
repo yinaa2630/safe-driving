@@ -82,6 +82,7 @@ class _SevereWarningScreenState extends State<SevereWarningScreen> {
                   ),
                 ),
                 onPressed: () {
+                  // TODO : 주행 종료로 서버에 데이터 전송
                   Navigator.pushNamed(context, '/matching');
                 },
                 child: Text(
