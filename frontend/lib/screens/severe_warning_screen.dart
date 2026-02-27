@@ -82,7 +82,14 @@ class _SevereWarningScreenState extends State<SevereWarningScreen> {
                   ),
                 ),
                 onPressed: () {
-                  Navigator.pushNamed(context, '/matching');
+                  // TODO : 주행 종료로 서버에 데이터 전송
+                  // 네비게이션에서 matching 라우팅으로 이동하되
+                  // 기존 히스토리 지우고 직전 페이지를 /main로 설정
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    '/matching',
+                    (route) => route.settings.name == '/main',
+                  );
                 },
                 child: Text(
                   "🚨 가까운 휴게소 찾기",

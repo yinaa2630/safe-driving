@@ -5,7 +5,8 @@ const Color inkBlack = Color(0xFF111116);
 
 const Color warnYellow = Color(0xFFF5A623);
 const Color dangerRed = Color(0xFFE8453C);
-const Color infoBlue = Color(0xFF4A9EFF);
+const Color infoLightBlue = Color(0xFF4C7BD9);
+const Color infoBlue = Color(0xFF3F51B5);
 
 const Color bgWhite = Color(0xFFFFFFFF);
 const Color surface = Color(0xFFF8F7F4);
