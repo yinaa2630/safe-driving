@@ -14,6 +14,8 @@ import { RestAreaModule } from './rest-area/rest-area.module';
 import { User } from './user/user.entity';
 import { DriveRecord } from './drive-record/drive-record.entity';
 import { ModelResult } from './model-result/model-result.entity';
+import { RestArea } from './rest-area/rest-area.entity';
+import { ServiceStation } from './service-station/service-station.entity';
 
 @Module({
   imports: [
@@ -29,7 +31,7 @@ import { ModelResult } from './model-result/model-result.entity';
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
 
-      entities: [User, DriveRecord, ModelResult], 
+      entities: [User, DriveRecord, ModelResult, RestArea, ServiceStation],
 
       synchronize: false, 
     }),

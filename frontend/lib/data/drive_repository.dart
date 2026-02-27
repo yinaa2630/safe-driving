@@ -27,9 +27,7 @@ class DriveRepository {
     await http.patch(
       Uri.parse("$baseUrl/drive-record/$driveId"),
       headers: {"Content-Type": "application/json"},
-      body: jsonEncode({
-        "end_time": DateTime.now().toIso8601String(),
-      }),
+      body: jsonEncode({"end_time": DateTime.now().toIso8601String()}),
     );
   }
 }

@@ -35,7 +35,7 @@ class DriveRecordService {
           "duration": duration,
           "avg_drowsiness": avgDrowsiness,
           "warning_count": warningCount,
-          "userId":1, 
+          "userId": 1,
         }),
       );
 
