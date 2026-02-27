@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_demo/providers/driving_id_notifier.dart';
 import 'package:flutter_demo/theme/colors.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'widgets/monthly_calendar_widget.dart';
 import 'drowsiness_screen.dart';
 import 'package:camera/camera.dart';
 
-class MainScreen extends StatelessWidget {
+class MainScreen extends ConsumerWidget {
   final CameraDescription camera;
 
   const MainScreen({super.key, required this.camera});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -41,7 +43,7 @@ class MainScreen extends StatelessWidget {
 
                     const SizedBox(height: 32),
 
-                    _buildStartCard(context),
+                    _buildStartCard(context, ref),
 
                     const SizedBox(height: 32),
 
@@ -99,7 +101,7 @@ class MainScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStartCard(BuildContext context) {
+  Widget _buildStartCard(BuildContext context, WidgetRef ref) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -134,7 +136,8 @@ class MainScreen extends StatelessWidget {
                 final startTime = DateTime.now();
 
                 // TODO : 해당 startTime 을 서버로 전송
-
+                // 응답값으로 서버에서 drivingId 받음. (해당 코드에서는 임의로 111 설정함.)
+                ref.read(drivingIdProvider.notifier).setId('111');
                 Navigator.push(
                   context,
                   MaterialPageRoute(

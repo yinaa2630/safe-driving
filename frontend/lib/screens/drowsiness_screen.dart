@@ -1,23 +1,25 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import 'package:flutter_demo/providers/driving_id_notifier.dart';
 import 'package:flutter_demo/screens/severe_warning_screen.dart';
 import 'package:flutter_demo/service/face_mesh_service.dart';
 import 'package:flutter_demo/service/tflite_service.dart';
 import 'package:flutter_demo/theme/colors.dart';
 import 'package:flutter_demo/utils/camera_utils.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mlkit_face_mesh_detection/google_mlkit_face_mesh_detection.dart';
 
-class DrowsinessScreen extends StatefulWidget {
+class DrowsinessScreen extends ConsumerStatefulWidget {
   final CameraDescription camera;
 
   const DrowsinessScreen({super.key, required this.camera});
 
   @override
-  State<DrowsinessScreen> createState() => _DrowsinessScreenState();
+  ConsumerState<DrowsinessScreen> createState() => _DrowsinessScreenState();
 }
 
-class _DrowsinessScreenState extends State<DrowsinessScreen> {
+class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
   late CameraController _controller;
   final FaceMeshService _meshService = FaceMeshService();
   final TFLiteService _tfLiteService = TFLiteService();
@@ -247,6 +249,7 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final drivingId = ref.watch(drivingIdProvider);
     if (!_controller.value.isInitialized) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -345,7 +348,9 @@ class _DrowsinessScreenState extends State<DrowsinessScreen> {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () {
-                        // TODO : 주행 종료로 종료시간을 서버에 전송
+                        // TODO : 주행 종료로 종료시간을 서버에 전송.
+                        // 확인 후 해당 print문 삭제하기
+                        print('🌟drivingId :::: $drivingId');
                         Navigator.pushNamed(context, '/complete');
                       },
                       style: ElevatedButton.styleFrom(
