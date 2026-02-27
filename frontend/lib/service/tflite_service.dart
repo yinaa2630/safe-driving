@@ -9,7 +9,9 @@ class TFLiteService {
   final List<List<double>> _inputBuffer = [];
 
   // 💡 [최적화 핵심] 매번 리스트를 새로 만들지 않도록 미리 할당 (1 * 25 * 72)
-  final Float32List _inputMatrix = Float32List(25 * 72);
+  final int frameCount = 25;
+  final int frameSize = 72;
+  Float32List get _inputMatrix => Float32List(frameCount * frameSize);
 
   // 💡 매번 할당하지 않도록 재사용할 단일 프레임 버퍼
   final List<double> _currentFrameBuffer = List.filled(72, 0.0);
@@ -47,7 +49,12 @@ class TFLiteService {
     double imgWidth,
     double imgHeight,
   ) {
-    if (_interpreter == null) return null;
+    if (_interpreter == null ||
+        meshPoints.isEmpty ||
+        meshPoints.length < _indexMapping.last + 1) {
+      print("잘못된 meshPoints 데이터");
+      return null;
+    }
 
     final center = meshPoints[168]; // 미간 기준점
     final double cx = center.x;
