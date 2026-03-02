@@ -9,7 +9,7 @@ export class DriveRecordController {
   @UseGuards(JwtAuthGuard)
   @Post()
   async create(@Req() req: any, @Body() body: any) {
-    const userId = req.user.id; 
+    const userId = req.user.userId; 
     return this.driveRecordService.create(body, userId);
   }
 }
