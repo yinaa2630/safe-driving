@@ -3,8 +3,11 @@ import {
   PrimaryGeneratedColumn,
   Column,
   OneToMany,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { DriveEvent } from '../model-result/model-result.entity';
+import { User } from '../user/user.entity';
 
 @Entity('drive_records')
 export class DriveRecord {
@@ -46,6 +49,12 @@ export class DriveRecord {
 
   @Column({ type: 'decimal', precision: 10, scale: 7, name: 'end_lng' })
   endLng: number;
+
+  @ManyToOne(() => User, (user) => user.driveRecords, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'user_id' })
+  user: User;
 
   @OneToMany(() => DriveEvent, (event) => event.driveRecord)
   events: DriveEvent[];
