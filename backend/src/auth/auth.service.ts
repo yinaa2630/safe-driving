@@ -45,7 +45,7 @@ export class AuthService {
   // 회원가입
 
   async register(createUserDto: CreateUserDto) {
-    const { email, password, username } = createUserDto;
+    const { email, password, username, emergencyCall } = createUserDto;
 
     const existingUser = await this.userRepository.findOne({
       where: { email },
@@ -61,6 +61,7 @@ export class AuthService {
       email,
       password: hashedPassword,
       username,
+      emergencyCall,
     });
 
     await this.userRepository.save(user);

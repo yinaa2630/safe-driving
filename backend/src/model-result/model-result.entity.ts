@@ -4,21 +4,35 @@ import {
   Column,
   ManyToOne,
   JoinColumn,
-  CreateDateColumn,
 } from 'typeorm';
 import { DriveRecord } from '../drive-record/drive-record.entity';
 
-@Entity('model_results')
-export class ModelResult {
+@Entity('drive_events')
+export class DriveEvent {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'double precision' })
+  @Column({ type: 'int4', name: 'drive_record_id' })
+  driveRecordId: number;
+
+  @Column({ type: 'varchar', length: 30, name: 'event_type' })
+  eventType: string;
+
+  @Column({ type: 'timestamp', name: 'event_time' })
+  eventTime: Date;
+
+  @Column({ type: 'decimal', precision: 10, scale: 7 })
+  lat: number;
+
+  @Column({ type: 'decimal', precision: 10, scale: 7 })
+  lng: number;
+
+  @Column({ type: 'float8' })
   score: number;
 
-  @CreateDateColumn({ type: 'timestamp' })
-  predicted_at: Date;
-
-  @Column()
-  drive_id: number;
+  @ManyToOne(() => DriveRecord, (record) => record.events, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'drive_record_id' })
+  driveRecord: DriveRecord;
 }

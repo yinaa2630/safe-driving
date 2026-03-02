@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_demo/providers/driving_id_notifier.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class DriveCompleteScreen extends StatelessWidget {
+class DriveCompleteScreen extends ConsumerWidget {
   const DriveCompleteScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     // 더미 데이터
     // TODO : 서버에서 주행 결과 가져오기
     final minutes = 10;
@@ -64,6 +66,8 @@ class DriveCompleteScreen extends StatelessWidget {
                 height: 50,
                 child: ElevatedButton(
                   onPressed: () {
+                    // TODO : drivingID 초기화 확인
+                    ref.read(drivingIdProvider.notifier).clear();
                     Navigator.pushNamed(context, '/main');
                   },
                   style: ElevatedButton.styleFrom(

@@ -1,6 +1,8 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_demo/theme/colors.dart';
+import 'package:flutter_demo/utils/phone_number_formatter.dart';
 import '../service/auth_service.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -17,6 +19,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
+  final _emergencyCallController = TextEditingController();
 
   final AuthService _authService = AuthService();
 
@@ -46,6 +49,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       _emailController.text.trim(),
       _passwordController.text.trim(),
       _nameController.text.trim(),
+      _emergencyCallController.text.replaceAll('-', '').trim(),
     );
 
     setState(() => _loading = false);
@@ -59,8 +63,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   void _showSnack(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Widget _buildInputLabel(String text) {
@@ -81,6 +86,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
     required TextEditingController controller,
     required String hint,
     bool obscure = false,
+    TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
   }) {
     return Container(
@@ -95,12 +102,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
       child: TextFormField(
         controller: controller,
         obscureText: obscure,
+        keyboardType: keyboardType,
+        inputFormatters: inputFormatters,
         validator: validator,
         decoration: InputDecoration(
           border: InputBorder.none,
           hintText: hint,
-          hintStyle:
-              const TextStyle(color: textLight, fontSize: 14),
+          hintStyle: const TextStyle(color: textLight, fontSize: 14),
         ),
       ),
     );
@@ -153,9 +161,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         controller: _nameController,
                         hint: "이름 입력",
                         validator: (v) =>
-                            v == null || v.isEmpty
-                                ? "이름을 입력하세요"
-                                : null,
+                            v == null || v.isEmpty ? "이름을 입력하세요" : null,
                       ),
 
                       const SizedBox(height: 20),
@@ -164,10 +170,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       _buildInputField(
                         controller: _emailController,
                         hint: "이메일 주소 입력",
-                        validator: (v) =>
-                            v != null && v.contains("@")
-                                ? null
-                                : "이메일 형식이 아닙니다",
+                        validator: (v) => v != null && v.contains("@")
+                            ? null
+                            : "이메일 형식이 아닙니다",
                       ),
 
                       const SizedBox(height: 20),
@@ -178,9 +183,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         hint: "비밀번호 입력",
                         obscure: true,
                         validator: (v) =>
-                            v != null && v.length >= 4
-                                ? null
-                                : "4자 이상 입력하세요",
+                            v != null && v.length >= 4 ? null : "4자 이상 입력하세요",
                       ),
 
                       const SizedBox(height: 20),
@@ -191,9 +194,34 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         hint: "비밀번호 재입력",
                         obscure: true,
                         validator: (v) =>
-                            v != _passwordController.text
-                                ? "비밀번호가 다릅니다"
-                                : null,
+                            v != _passwordController.text ? "비밀번호가 다릅니다" : null,
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      _buildInputLabel("비상연락처"),
+                      _buildInputField(
+                        controller: _emergencyCallController,
+                        hint: "비상연락처를 입력하세요",
+                        obscure: false,
+                        keyboardType: TextInputType.phone,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          PhoneNumberFormatter(),
+                        ],
+                        validator: (v) {
+                          if (v == null || v.isEmpty) {
+                            return "번호를 입력하세요";
+                          }
+
+                          final phoneReg = RegExp(r'^01[0-9]-\d{3,4}-\d{4}$');
+
+                          if (!phoneReg.hasMatch(v)) {
+                            return "올바른 번호 형식이 아닙니다";
+                          }
+
+                          return null;
+                        },
                       ),
 
                       const SizedBox(height: 20),
@@ -211,10 +239,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           const Expanded(
                             child: Text(
                               "이용약관 및 개인정보처리방침에 동의합니다",
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: textMedium,
-                              ),
+                              style: TextStyle(fontSize: 13, color: textMedium),
                             ),
                           ),
                         ],
@@ -272,9 +297,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                   onPressed: _loading ? null : _signUp,
                   child: _loading
-                      ? const CircularProgressIndicator(
-                          color: Colors.white,
-                        )
+                      ? const CircularProgressIndicator(color: Colors.white)
                       : const Text(
                           "가입하기",
                           style: TextStyle(
