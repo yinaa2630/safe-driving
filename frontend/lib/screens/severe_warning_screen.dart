@@ -22,7 +22,7 @@ class _SevereWarningScreenState extends State<SevereWarningScreen> {
   void _playBeep() async {
     try {
       // 에뮬레이터 부하를 줄이기 위해 재생 전 모드 고정
-      await _audioPlayer.setPlayerMode(PlayerMode.lowLatency);
+      await _audioPlayer.setPlayerMode(PlayerMode.mediaPlayer);
       await _audioPlayer.play(AssetSource('sound/beep.mp3'));
       debugPrint("🔔 비프음 재생 명령 전송됨");
     } catch (e) {
