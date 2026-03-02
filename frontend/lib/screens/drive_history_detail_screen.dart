@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'widgets/monthly_calendar_widget.dart';
 import 'drive_chart_tab.dart';
-import '../data/drive_repository.dart';
 import 'package:flutter_demo/data/mock_drive_data.dart';
 
 class DriveHistoryDetailScreen extends StatelessWidget {
