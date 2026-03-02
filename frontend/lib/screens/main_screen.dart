@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'widgets/monthly_calendar_widget.dart';
 import 'drowsiness_screen.dart';
 import 'package:camera/camera.dart';
+import 'package:flutter_demo/service/matching_service.dart';
+import 'package:flutter_demo/service/drive_record_service.dart';
 
 class MainScreen extends ConsumerWidget {
   final CameraDescription camera;
@@ -132,19 +134,39 @@ class MainScreen extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              onPressed: () {
+              onPressed: () async {
                 final startTime = DateTime.now();
+                final driveService = DriveRecordService();
+                final matchingService = MatchingService();
 
-                // TODO : 해당 startTime 을 서버로 전송
-                // 응답값으로 서버에서 drivingId 받음. (해당 코드에서는 임의로 111 설정함.)
-                ref.read(drivingIdProvider.notifier).setId('111');
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => DrowsinessScreen(camera: camera),
-                  ),
-                );
+                try {
+                  // 현재 위치 가져오기
+                  final pos = await matchingService.getCurrentLocation();
+
+                  final driveId = await driveService.startDrive(
+                    driveDate: startTime.toIso8601String(),
+                    startTime: startTime,
+                    startLat: pos.latitude,
+                    startLng: pos.longitude,
+                  );
+
+                  if (driveId != null) {
+                    ref.read(drivingIdProvider.notifier).setId(driveId.toString());
+
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => DrowsinessScreen(camera: camera),
+                      ),
+                    );
+                  } else {
+                    print("❌ drive_record 생성 실패");
+                  }
+                } catch (e) {
+                  print("❌ 위치 가져오기 실패: $e");
+                }
               },
+              
               child: const Text(
                 "주행 시작하기",
                 style: TextStyle(

@@ -20,17 +20,17 @@ export class DriveRecord {
   @Column({ type: 'timestamp', name: 'start_time' })
   startTime: Date;
 
-  @Column({ type: 'timestamp', name: 'end_time' })
-  endTime: Date;
+  @Column({ type: 'timestamp', name: 'end_time', nullable: true })
+  endTime: Date | null;
 
-  @Column({ type: 'int4' })
-  duration: number;
+  @Column({ type: 'int4', nullable: true })
+  duration: number | null;
 
-  @Column({ type: 'float8', name: 'avg_drowsiness' })
-  avgDrowsiness: number;
+  @Column({ type: 'float8', name: 'avg_drowsiness', nullable: true })
+  avgDrowsiness: number | null;
 
-  @Column({ type: 'int4', name: 'warning_count' })
-  warningCount: number;
+  @Column({ type: 'int4', name: 'warning_count', nullable: true })
+  warningCount: number | null;
 
   @Column({ type: 'int4', name: 'attention_count', default: 0 })
   attentionCount: number;
@@ -44,11 +44,11 @@ export class DriveRecord {
   @Column({ type: 'decimal', precision: 10, scale: 7, name: 'start_lng' })
   startLng: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 7, name: 'end_lat' })
-  endLat: number;
+  @Column({ type: 'decimal', precision: 10, scale: 7, name: 'end_lat', nullable: true })
+  endLat: number | null;
 
-  @Column({ type: 'decimal', precision: 10, scale: 7, name: 'end_lng' })
-  endLng: number;
+  @Column({ type: 'decimal', precision: 10, scale: 7, name: 'end_lng', nullable: true })
+  endLng: number | null;
 
   @ManyToOne(() => User, (user) => user.driveRecords, {
     onDelete: 'CASCADE',

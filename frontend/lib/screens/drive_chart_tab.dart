@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_demo/theme/colors.dart';
-import '../data/drive_repository.dart';
 import '../models/drive_record.dart';
-import 'package:flutter_demo/data/drive_repository.dart';
 import 'package:flutter_demo/data/mock_drive_data.dart';
 
 class DriveChartTab extends StatefulWidget {

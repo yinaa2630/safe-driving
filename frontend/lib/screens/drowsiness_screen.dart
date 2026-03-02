@@ -9,6 +9,8 @@ import 'package:flutter_demo/theme/colors.dart';
 import 'package:flutter_demo/utils/camera_utils.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mlkit_face_mesh_detection/google_mlkit_face_mesh_detection.dart';
+import 'package:flutter_demo/service/drive_event_service.dart';
+import 'package:flutter_demo/providers/drive_summary_notifier.dart';
 
 class DrowsinessScreen extends ConsumerStatefulWidget {
   final CameraDescription camera;
@@ -26,6 +28,15 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
   final AudioPlayer _audioPlayer = AudioPlayer();
   final List<double> _scoreHistory = []; // 점수 평균을 위한 리스트
 
+  final DriveEventService _driveEventService = DriveEventService();
+
+  // 주행 요약용 변수
+  late DateTime _startTime;
+  int _attentionCount = 0;
+  int _warningCount = 0;
+  double _totalScore = 0;
+  int _scoreSamples = 0;
+  
   bool _isProcessing = false;
   double _currentEAR = 0.0; // face mesh 에서 판단한 EAR 지수
   int _modelDrowsyCounter = 0; // 모델 점수 지속 확인용
@@ -45,6 +56,7 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
   @override
   void initState() {
     super.initState();
+    _startTime = DateTime.now(); // 추가
     _audioPlayer.setVolume(1.0);
     _initCamera();
   }
@@ -161,6 +173,7 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
       setState(() {
         _currentEAR = ear;
       });
+      
       return;
     }
 
@@ -169,7 +182,7 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
 
     // 데이터 추가
     _scoreHistory.add(score);
-    if (_scoreHistory.length > 5) _scoreHistory.removeAt(0); // 최근 25프레임 평균
+    if (_scoreHistory.length > 5) _scoreHistory.removeAt(0); // 최근 5프레임 평균
 
     // 단순 평균 대신 가중치 부여
     double weightedSum = 0;
@@ -190,6 +203,8 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
       _currentEAR = ear;
       _drowsyScore = avgScore; // 화면에는 부드러운 평균 점수 표시
     });
+    _totalScore += avgScore;
+    _scoreSamples++;
 
     // 2. 모델 판정 (점수가 높게 유지되는지 체크)
     if (avgScore > modelUpperThreshold) {
@@ -199,6 +214,8 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
     }
 
     bool modelDrowsy = _modelDrowsyCounter >= 5;
+    final driveIdStr = ref.read(drivingIdProvider);
+    final driveId = int.tryParse(driveIdStr ?? "");
 
     if (modelDrowsy) {
       // TODO : 주의 상태일 때 서버에 avgScore 데이터 보냄
@@ -209,6 +226,18 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
           _drowsyStartTime = DateTime.now();
           _warningCountdown = 3;
         });
+
+        _attentionCount++; 
+        // ATTENTION 이벤트 저장
+        if (driveId != null) {
+        await _driveEventService.saveEvent(
+          driveRecordId: driveId,
+          eventType: "ATTENTION",
+          score: avgScore,
+          lat: 0.0,
+          lng: 0.0,
+        );
+       } 
       } else {
         // 주의 유지 및 카운트다운
         final elapsed = DateTime.now().difference(_drowsyStartTime!).inSeconds;
@@ -218,6 +247,22 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
 
         if (elapsed >= 3 && !_isSeverePushed) {
           _isSeverePushed = true;
+
+          if (_controller.value.isStreamingImages) {
+            await _controller.stopImageStream();
+          }
+
+          _warningCount++;
+          // WARNING 이벤트 저장
+          if (driveId != null) {
+            await _driveEventService.saveEvent(
+              driveRecordId: driveId,
+              eventType: "WARNING",
+              score: avgScore,
+              lat: 0.0,
+              lng: 0.0,
+            );
+          }
 
           // TODO : 경고상태일 때 서버에 avgScore 데이터 보냄
           Navigator.push(
@@ -249,7 +294,12 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    if (_controller.value.isStreamingImages) {
+      _controller.stopImageStream();
+    }
+    if (_controller.value.isInitialized) {
+      _controller.dispose();
+    }
     _meshService.dispose();
     _tfLiteService.dispose();
     super.dispose();
@@ -356,9 +406,21 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () {
-                        // TODO : 주행 종료로 종료시간을 서버에 전송.
-                        // 확인 후 해당 print문 삭제하기
-                        print('🌟drivingId :::: $drivingId');
+                        final duration =
+                            DateTime.now().difference(_startTime).inSeconds;
+
+                        final avg =
+                            _scoreSamples == 0 ? 0.0 : _totalScore / _scoreSamples;
+
+                        ref.read(driveSummaryProvider.notifier).setSummary(
+                          DriveSummary(
+                            duration: duration,
+                            avgDrowsiness: avg,
+                            warningCount: _warningCount,
+                            attentionCount: _attentionCount,
+                          ),
+                        );
+
                         Navigator.pushNamed(context, '/complete');
                       },
                       style: ElevatedButton.styleFrom(
