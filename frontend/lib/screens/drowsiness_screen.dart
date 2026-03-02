@@ -61,8 +61,7 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
     try {
       await _controller.initialize();
       if (!mounted) return;
-
-      // 2. 카메라가 안정적으로 뜬 후에 모델 로드 (비동기)
+      // 카메라가 안정적으로 뜬 후에 모델 로드 (비동기)
       await _tfLiteService.loadModel();
 
       setState(() {});
@@ -158,25 +157,34 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
   }
 
   void _updateUI(double ear, double? score) async {
+    if (score == null) {
+      setState(() {
+        _currentEAR = ear;
+      });
+      return;
+    }
+
     const double modelUpperThreshold = 0.5; // 이 점수 넘으면 졸음 의심
     const double modelLowerThreshold = 0.4; // 이 점수 밑으로 내려가야 안심
 
-    // 1. 모델 점수 안정화 (이동 평균)
-    if (score != null) {
-      _scoreHistory.add(score);
-      if (_scoreHistory.length > 5) _scoreHistory.removeAt(0); // 최근 25프레임 평균
-    }
+    // 데이터 추가
+    _scoreHistory.add(score);
+    if (_scoreHistory.length > 5) _scoreHistory.removeAt(0); // 최근 25프레임 평균
 
     // 단순 평균 대신 가중치 부여
     double weightedSum = 0;
     double weightTotal = 0;
-    for (int i = 0; i < _scoreHistory.length; i++) {
-      double weight = (i + 1).toDouble(); // 최근 데이터일수록 가중치 증가
-      weightedSum += _scoreHistory[i] * weight;
-      weightTotal += weight;
+
+    if (_scoreHistory.isNotEmpty) {
+      for (int i = 0; i < _scoreHistory.length; i++) {
+        double weight = (i + 1).toDouble();
+        weightedSum += _scoreHistory[i] * weight;
+        weightTotal += weight;
+      }
     }
 
-    double avgScore = _scoreHistory.isEmpty ? 0.0 : weightedSum / weightTotal;
+    // 0으로 나누기 방지
+    double avgScore = (weightTotal > 0) ? (weightedSum / weightTotal) : 0.0;
 
     setState(() {
       _currentEAR = ear;
