@@ -8,13 +8,14 @@ class TFLiteService {
   // 💡 데이터 버퍼: 25프레임을 담는 용도
   final List<List<double>> _inputBuffer = [];
 
-  // 💡 [최적화 핵심] 매번 리스트를 새로 만들지 않도록 미리 할당 (1 * 25 * 72)
-  final int frameCount = 25;
-  final int frameSize = 72;
-  Float32List get _inputMatrix => Float32List(frameCount * frameSize);
+  // 💡 [최적화 핵심] 매번 리스트를 새로 만들지 않도록 미리 할당
+  static const int frameCount = 25;
+  static const int pointsCount = 36; // 4 + 6 + 6 + 12 + 8
+  static const int frameSize = pointsCount * 2; // 72 (x, y 좌표)
+  final Float32List _inputMatrix = Float32List(1 * frameCount * frameSize);
 
   // 💡 매번 할당하지 않도록 재사용할 단일 프레임 버퍼
-  final List<double> _currentFrameBuffer = List.filled(72, 0.0);
+  final List<double> _currentFrameBuffer = [];
 
   // Dlib 학습 순서에 맞춘 인덱스 매핑
   static const List<int> _indexMapping = [
