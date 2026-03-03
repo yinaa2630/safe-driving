@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_demo/providers/driving_id_notifier.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_demo/service/drive_record_service.dart';
+import 'package:flutter_demo/service/matching_service.dart';
+import 'package:flutter_demo/providers/drive_summary_notifier.dart';
 
 class DriveCompleteScreen extends ConsumerWidget {
   const DriveCompleteScreen({super.key});
@@ -65,10 +68,46 @@ class DriveCompleteScreen extends ConsumerWidget {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: () {
-                    // TODO : drivingID 초기화 확인
-                    ref.read(drivingIdProvider.notifier).clear();
-                    Navigator.pushNamed(context, '/main');
+                  onPressed: () async {
+                    final driveIdStr = ref.read(drivingIdProvider);
+                    final summary = ref.read(driveSummaryProvider);
+
+                    if (driveIdStr == null || summary == null) {
+                      Navigator.pushNamed(context, '/main');
+                      return;
+                    }
+
+                    final driveId = int.tryParse(driveIdStr);
+                    if (driveId == null) {
+                      Navigator.pushNamed(context, '/main');
+                      return;
+                    }
+
+                    final driveService = DriveRecordService();
+                    final matchingService = MatchingService();
+
+                    try {
+                      final pos = await matchingService.getCurrentLocation();
+
+                      final success = await driveService.endDrive(
+                        driveId: driveId,
+                        endTime: DateTime.now(),
+                        duration: summary.duration,
+                        avgDrowsiness: summary.avgDrowsiness,
+                        warningCount: summary.warningCount,
+                        attentionCount: summary.attentionCount,
+                        endLat: pos.latitude,
+                        endLng: pos.longitude,
+                      );
+
+                      if (success) {
+                        ref.read(drivingIdProvider.notifier).clear();
+                        ref.read(driveSummaryProvider.notifier).clear();
+                        Navigator.pushNamed(context, '/main');
+                      }
+                    } catch (e) {
+                      print("❌ 종료 처리 중 에러: $e");
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.black,
