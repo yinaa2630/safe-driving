@@ -21,6 +21,13 @@ class _MatchingScreenState extends State<MatchingScreen> {
   bool _isLoading = true;
   String? _error;
 
+  // ✅ 선택된 카드 "고유키" (RestArea에 id가 없어서 String 키로 관리)
+  String? _selectedKey;
+
+  // ✅ RestArea를 유일하게 구분할 키(데이터 중복 고려해서 lat/lng + direction까지 포함)
+  String _keyOf(RestArea a) =>
+      '${a.type}_${a.name}_${a.latitude}_${a.longitude}_${a.direction}';
+
   @override
   void initState() {
     super.initState();
@@ -53,8 +60,16 @@ class _MatchingScreenState extends State<MatchingScreen> {
         bearing,
       );
 
+      final areas = response.map((e) => RestArea.fromJson(e)).toList();
+
       setState(() {
-        _restAreas = response.map((e) => RestArea.fromJson(e)).toList();
+        _restAreas = areas;
+
+        // ✅ 리스트 갱신 후, 선택된 항목이 사라졌으면 선택 해제
+        if (_selectedKey != null &&
+            !_restAreas.any((a) => _keyOf(a) == _selectedKey)) {
+          _selectedKey = null;
+        }
       });
     } catch (e) {
       setState(() => _error = e.toString());
@@ -64,6 +79,9 @@ class _MatchingScreenState extends State<MatchingScreen> {
   }
 
   Future<void> _onMoveTap(RestArea area) async {
+    // ✅ 이동 눌러도 선택 테두리 유지
+    setState(() => _selectedKey = _keyOf(area));
+
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -100,7 +118,12 @@ class _MatchingScreenState extends State<MatchingScreen> {
   }
 
   void _moveToArea(RestArea area) {
+    // ✅ 카드 선택(테두리 표시)
+    setState(() => _selectedKey = _keyOf(area));
+
+    // 지도 이동
     _mapKey.currentState?.moveToLocation(area.latitude, area.longitude);
+    _mapKey.currentState?.drawRouteTo(area.latitude, area.longitude);
   }
 
   @override
@@ -122,12 +145,10 @@ class _MatchingScreenState extends State<MatchingScreen> {
                   MapOverviewScreen(
                     key: _mapKey,
                     myPosition: _myPosition!,
-                    drowsyShelters: _restAreas
-                        .where((a) => a.isDrowsyShelter)
-                        .toList(),
-                    restAreas: _restAreas
-                        .where((a) => !a.isDrowsyShelter)
-                        .toList(),
+                    drowsyShelters:
+                        _restAreas.where((a) => a.isDrowsyShelter).toList(),
+                    restAreas:
+                        _restAreas.where((a) => !a.isDrowsyShelter).toList(),
                   )
                 else
                   Container(
@@ -152,114 +173,82 @@ class _MatchingScreenState extends State<MatchingScreen> {
                     ),
                   ),
 
-                // 상단 헤더 그라디언트
+                // ✅ 상단 헤더 (그라데이션 제거 + 텍스트 검정 + 새로고침 반투명 유지)
                 Positioned(
                   top: 0,
                   left: 0,
                   right: 0,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          const Color(0xFF1A237E).withOpacity(0.85),
-                          const Color(0xFF1A237E).withOpacity(0.0),
-                        ],
-                      ),
-                    ),
-                    child: SafeArea(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 24, vertical: 16),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('졸음이 감지되었습니다',
-                                    style: TextStyle(
-                                        color: Colors.white70, fontSize: 13)),
-                                SizedBox(height: 2),
-                                Text(
-                                  '가까운 쉼터를 찾았어요',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '졸음이 감지되었습니다',
+                                style: TextStyle(
+                                  color: Colors.black54,
+                                  fontSize: 13,
                                 ),
-                              ],
-                            ),
-                            GestureDetector(
-                              onTap: _load,
-                              child: Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.refresh,
-                                    color: Colors.white, size: 22),
                               ),
+                              SizedBox(height: 2),
+                              Text(
+                                '가까운 쉼터를 찾았어요',
+                                style: TextStyle(
+                                  color: Colors.black,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          GestureDetector(
+                            onTap: _load,
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.6),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.refresh,
+                                  color: Colors.black, size: 22),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ),
 
-                // 버튼들
+                // 버튼들 (✅ 전체화면 버튼 제거, GPS 버튼만 유지)
                 if (_myPosition != null && !_isLoading) ...[
                   Positioned(
                     bottom: 16,
                     right: 16,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        GestureDetector(
-                          onTap: () => _mapKey.currentState?.fitAll(),
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            margin: const EdgeInsets.only(bottom: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.15),
-                                  blurRadius: 8,
-                                ),
-                              ],
+                    child: GestureDetector(
+                      onTap: () => _mapKey.currentState?.moveToLocation(
+                        _myPosition!.latitude,
+                        _myPosition!.longitude,
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.15),
+                              blurRadius: 8,
                             ),
-                            child: const Icon(Icons.zoom_out_map,
-                                color: Color(0xFF3F51B5), size: 22),
-                          ),
+                          ],
                         ),
-                        GestureDetector(
-                          onTap: () => _mapKey.currentState?.moveToLocation(
-                            _myPosition!.latitude,
-                            _myPosition!.longitude,
-                          ),
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.15),
-                                  blurRadius: 8,
-                                ),
-                              ],
-                            ),
-                            child: const Icon(Icons.gps_fixed,
-                                color: Color(0xFF3F51B5), size: 22),
-                          ),
-                        ),
-                      ],
+                        child: const Icon(Icons.gps_fixed,
+                            color: Color(0xFF3F51B5), size: 22),
+                      ),
                     ),
                   ),
 
@@ -375,8 +364,8 @@ class _MatchingScreenState extends State<MatchingScreen> {
                                       Text(
                                         _error!,
                                         textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                            color: Colors.red),
+                                        style:
+                                            const TextStyle(color: Colors.red),
                                       ),
                                       const SizedBox(height: 12),
                                       ElevatedButton(
@@ -392,13 +381,16 @@ class _MatchingScreenState extends State<MatchingScreen> {
                                   : ListView.builder(
                                       controller: scrollController,
                                       itemCount: _restAreas.length,
-                                      itemBuilder: (_, i) => _ShelterItem(
-                                        area: _restAreas[i],
-                                        onMoveTap: () =>
-                                            _onMoveTap(_restAreas[i]),
-                                        onCardTap: () =>
-                                            _moveToArea(_restAreas[i]),
-                                      ),
+                                      itemBuilder: (_, i) {
+                                        final area = _restAreas[i];
+                                        return _ShelterItem(
+                                          area: area,
+                                          isSelected:
+                                              _selectedKey == _keyOf(area),
+                                          onMoveTap: () => _onMoveTap(area),
+                                          onCardTap: () => _moveToArea(area),
+                                        );
+                                      },
                                     ),
                     ),
                   ],
@@ -414,11 +406,13 @@ class _MatchingScreenState extends State<MatchingScreen> {
 
 class _ShelterItem extends StatelessWidget {
   final RestArea area;
+  final bool isSelected;
   final VoidCallback onMoveTap;
   final VoidCallback onCardTap;
 
   const _ShelterItem({
     required this.area,
+    required this.isSelected,
     required this.onMoveTap,
     required this.onCardTap,
   });
@@ -426,6 +420,9 @@ class _ShelterItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDrowsy = area.isDrowsyShelter;
+
+    final selectedBorderColor = isDrowsy ? mainGreen : infoBlue;
+
     final tagColor =
         isDrowsy ? mainGreen.withAlpha(4) : infoLightBlue.withAlpha(4);
     final tagTextColor = isDrowsy ? mainGreen : infoLightBlue;
@@ -441,7 +438,10 @@ class _ShelterItem extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(
+            color: isSelected ? selectedBorderColor : Colors.grey.shade200,
+            width: isSelected ? 2.2 : 1.0,
+          ),
           boxShadow: [
             BoxShadow(
               color: inkBlack.withAlpha(4),
