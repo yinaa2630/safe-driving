@@ -1,53 +1,38 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_demo/providers/me_data_notifier.dart';
 import 'package:flutter_demo/theme/colors.dart';
+import 'package:flutter_demo/utils/format_phone_number.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../service/auth_service.dart';
 import 'drive_history_detail_screen.dart';
 
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final AuthService authService = AuthService();
-
-  String? email;
-  String? username;
-  bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    loadUser();
-  }
-
-  Future<void> loadUser() async {
-    final user = await authService.getMe();
-
-    if (user != null) {
-      setState(() {
-        email = user['email'];
-        username = user['username'];
-        isLoading = false;
-      });
-    } else {
-      Navigator.pushReplacementNamed(context, '/');
-    }
   }
 
   Future<void> logout() async {
     await authService.logout();
+    ref.read(meDataProvider.notifier).clear();
     Navigator.pushReplacementNamed(context, '/');
   }
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) {
+    final meData = ref.read(meDataProvider);
+    if (meData == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-
     return Scaffold(
       appBar: AppBar(title: const Text("내 정보")),
       body: Padding(
@@ -62,12 +47,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 24),
             Text(
-              username ?? '',
+              meData.username,
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 6),
             Text(
-              email ?? '',
+              meData.email,
+              style: const TextStyle(fontSize: 14, color: textMedium),
+            ),
+            Text(
+              '비상 연락처 ${formatPhoneNumber(meData.emergencyCall)}',
               style: const TextStyle(fontSize: 14, color: textMedium),
             ),
             const SizedBox(height: 40),

@@ -74,6 +74,7 @@ class MyApp extends StatelessWidget {
         : null;
 
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'Secure Drowsiness App',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: mainGreen)
