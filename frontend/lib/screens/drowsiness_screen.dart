@@ -42,7 +42,7 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
   bool _isProcessing = false;
   double _currentEAR = 0.0; // face mesh 에서 판단한 EAR 지수
   int _modelDrowsyCounter = 0; // 모델 점수 지속 확인용
-  double _drowsyScore = 0.0; // 모델이 판단한 졸음 확률
+  double? _drowsyScore; // 모델이 판단한 졸음 확률
   bool _isDrowsy = false;
   int _warningCountdown = 3;
   DateTime? _drowsyStartTime;
@@ -291,7 +291,7 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
             _isSeverePushed = false;
             _modelDrowsyCounter = 0; // 카운터 초기화
             _scoreHistory.clear(); // 점수 히스토리 완전 삭제
-            _drowsyScore = 0.0; // 표시되는 점수 초기화
+            _drowsyScore = null; // 표시되는 점수 초기화
             _isDrowsy = false; // 졸음 상태 해제
             _drowsyStartTime = null; // 시작 시간 초기화
             _isEyeClosed = false; // 눈깜빡임 상태 초기화
@@ -417,7 +417,9 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
                         _buildBottomInfo("졸린눈", "$_blinkCount회"), // ✨ 추가
                         _buildBottomInfo(
                           "졸음수치",
-                          _drowsyScore.toStringAsFixed(3),
+                          _drowsyScore == null
+                              ? '-'
+                              : _drowsyScore!.toStringAsFixed(3),
                         ),
                         _buildBottomInfo("상태", _isDrowsy ? "주의" : "정상"),
                       ],
