@@ -19,6 +19,8 @@ class MainScreen extends ConsumerStatefulWidget {
 }
 
 class _MainScreenState extends ConsumerState<MainScreen> {
+  bool _isStarting = false;
+
   @override
   void initState() {
     super.initState();
@@ -158,49 +160,78 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                   borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              onPressed: () async {
-                final startTime = DateTime.now();
-                final driveService = DriveRecordService();
-                final matchingService = MatchingService();
+              onPressed: _isStarting
+                  ? null
+                  : () async {
+                      setState(() {
+                        _isStarting = true;
+                      });
+                      final startTime = DateTime.now();
+                      final driveService = DriveRecordService();
+                      final matchingService = MatchingService();
 
-                try {
-                  // 현재 위치 가져오기
-                  final pos = await matchingService.getCurrentLocation();
+                      try {
+                        // 현재 위치 가져오기
+                        final pos = await matchingService.getCurrentLocation();
 
-                  final driveId = await driveService.startDrive(
-                    driveDate: startTime.toIso8601String(),
-                    startTime: startTime,
-                    startLat: pos.latitude,
-                    startLng: pos.longitude,
-                  );
+                        final driveId = await driveService.startDrive(
+                          driveDate: startTime.toIso8601String(),
+                          startTime: startTime,
+                          startLat: pos.latitude,
+                          startLng: pos.longitude,
+                        );
 
-                  if (driveId != null) {
-                    ref
-                        .read(drivingIdProvider.notifier)
-                        .setId(driveId.toString());
+                        if (!mounted) return;
 
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => DrowsinessScreen(camera: widget.camera),
+                        if (driveId != null) {
+                          ref
+                              .read(drivingIdProvider.notifier)
+                              .setId(driveId.toString());
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  DrowsinessScreen(camera: widget.camera),
+                            ),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("주행 시작에 실패했습니다.")),
+                          );
+                        }
+                      } catch (e) {
+                        if (!mounted) return;
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("위치를 가져올 수 없습니다.")),
+                        );
+                      } finally {
+                        if (mounted) {
+                          setState(() {
+                            _isStarting = false;
+                          });
+                        }
+                      }
+                    },
+
+              child: _isStarting
+                  ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
-                    );
-                  } else {
-                    print("❌ drive_record 생성 실패");
-                  }
-                } catch (e) {
-                  print("❌ 위치 가져오기 실패: $e");
-                }
-              },
-
-              child: const Text(
-                "주행 시작하기",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
+                    )
+                  : const Text(
+                      "주행 시작하기",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
             ),
           ),
         ],
