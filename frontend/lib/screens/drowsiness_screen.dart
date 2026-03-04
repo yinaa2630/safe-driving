@@ -4,6 +4,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter_demo/providers/driving_id_notifier.dart';
 import 'package:flutter_demo/screens/severe_warning_screen.dart';
 import 'package:flutter_demo/service/face_mesh_service.dart';
+import 'package:flutter_demo/service/matching_service.dart';
 import 'package:flutter_demo/service/tflite_service.dart';
 import 'package:flutter_demo/theme/colors.dart';
 import 'package:flutter_demo/utils/camera_utils.dart';
@@ -25,6 +26,7 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
   late CameraController _controller;
   final FaceMeshService _meshService = FaceMeshService();
   final TFLiteService _tfLiteService = TFLiteService();
+  final MatchingService _matchingService = MatchingService();
   final AudioPlayer _audioPlayer = AudioPlayer();
   final List<double> _scoreHistory = []; // 점수 평균을 위한 리스트
 
@@ -36,7 +38,7 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
   int _warningCount = 0;
   double _totalScore = 0;
   int _scoreSamples = 0;
-  
+
   bool _isProcessing = false;
   double _currentEAR = 0.0; // face mesh 에서 판단한 EAR 지수
   int _modelDrowsyCounter = 0; // 모델 점수 지속 확인용
@@ -88,7 +90,7 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
     if (_isProcessing) return;
     // 2프레임당 1번만 처리
     _frameCount++;
-    if (_frameCount % 2 != 0) return;
+    if (_frameCount % 3 != 0) return;
 
     _isProcessing = true;
 
@@ -168,12 +170,33 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
     }
   }
 
+  void _sendEventAsync({
+    required int driveId,
+    required String eventType,
+    required double score,
+  }) {
+    Future.microtask(() async {
+      try {
+        final pos = await _matchingService.getCurrentLocation();
+        await _driveEventService.saveEvent(
+          driveRecordId: driveId,
+          eventType: eventType,
+          score: score,
+          lat: pos.latitude,
+          lng: pos.longitude,
+        );
+      } catch (e) {
+        debugPrint("이벤트 저장 실패: $e");
+      }
+    });
+  }
+
   void _updateUI(double ear, double? score) async {
     if (score == null) {
       setState(() {
         _currentEAR = ear;
       });
-      
+
       return;
     }
 
@@ -227,17 +250,15 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
           _warningCountdown = 3;
         });
 
-        _attentionCount++; 
+        _attentionCount++;
         // ATTENTION 이벤트 저장
         if (driveId != null) {
-        await _driveEventService.saveEvent(
-          driveRecordId: driveId,
-          eventType: "ATTENTION",
-          score: avgScore,
-          lat: 0.0,
-          lng: 0.0,
-        );
-       } 
+          _sendEventAsync(
+            driveId: driveId,
+            eventType: "ATTENTION",
+            score: avgScore,
+          );
+        }
       } else {
         // 주의 유지 및 카운트다운
         final elapsed = DateTime.now().difference(_drowsyStartTime!).inSeconds;
@@ -255,12 +276,10 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
           _warningCount++;
           // WARNING 이벤트 저장
           if (driveId != null) {
-            await _driveEventService.saveEvent(
-              driveRecordId: driveId,
+            _sendEventAsync(
+              driveId: driveId,
               eventType: "WARNING",
               score: avgScore,
-              lat: 0.0,
-              lng: 0.0,
             );
           }
 
@@ -297,9 +316,7 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
     if (_controller.value.isStreamingImages) {
       _controller.stopImageStream();
     }
-    if (_controller.value.isInitialized) {
-      _controller.dispose();
-    }
+    _controller.dispose();
     _meshService.dispose();
     _tfLiteService.dispose();
     super.dispose();
@@ -307,7 +324,6 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final drivingId = ref.watch(drivingIdProvider);
     if (!_controller.value.isInitialized) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -358,7 +374,7 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
           Positioned(
             left: 0,
             right: 0,
-            bottom: 0,
+            bottom: 50,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
               decoration: BoxDecoration(
@@ -406,20 +422,24 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () {
-                        final duration =
-                            DateTime.now().difference(_startTime).inSeconds;
+                        final duration = DateTime.now()
+                            .difference(_startTime)
+                            .inSeconds;
 
-                        final avg =
-                            _scoreSamples == 0 ? 0.0 : _totalScore / _scoreSamples;
+                        final avg = _scoreSamples == 0
+                            ? 0.0
+                            : _totalScore / _scoreSamples;
 
-                        ref.read(driveSummaryProvider.notifier).setSummary(
-                          DriveSummary(
-                            duration: duration,
-                            avgDrowsiness: avg,
-                            warningCount: _warningCount,
-                            attentionCount: _attentionCount,
-                          ),
-                        );
+                        ref
+                            .read(driveSummaryProvider.notifier)
+                            .setSummary(
+                              DriveSummary(
+                                duration: duration,
+                                avgDrowsiness: avg,
+                                warningCount: _warningCount,
+                                attentionCount: _attentionCount,
+                              ),
+                            );
 
                         Navigator.pushNamed(context, '/complete');
                       },
