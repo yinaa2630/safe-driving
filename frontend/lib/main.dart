@@ -10,17 +10,18 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_demo/screens/profile_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 late List<CameraDescription> cameras;
-
-// ✅ 카카오 네이티브 앱 키 직접 입력
-const _kakaoNativeAppKey = 'e74d2b161fac47a3985f30b5c19335cc';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ✅ 카카오맵 초기화
-  await KakaoMapSdk.instance.initialize(_kakaoNativeAppKey);
+  // ✅ .env 로드 → 카카오 키 주입
+  await dotenv.load(fileName: '.env');
+  final kakaoKey = dotenv.env['KAKAO_NATIVE_APP_KEY'] ?? '';
+  await KakaoMapSdk.instance.initialize(kakaoKey);
+
   final hashKey = await KakaoMapSdk.instance.hashKey();
   debugPrint('🔑 키 해시: $hashKey');
 

@@ -16,6 +16,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
   final _mapKey = GlobalKey<MapOverviewScreenState>();
 
   Position? _myPosition;
+  double _bearing = -1;
   List<RestArea> _restAreas = [];
   bool _isLoading = true;
   String? _error;
@@ -34,11 +35,22 @@ class _MatchingScreenState extends State<MatchingScreen> {
 
     try {
       final pos = await matchingService.getCurrentLocation();
-      setState(() => _myPosition = pos);
+
+      // ✅ GPS bearing 계산
+      final bearing = matchingService.calcBearing(pos);
+
+      setState(() {
+        _myPosition = pos;
+        _bearing = bearing;
+      });
+
+      debugPrint('📍 위치: ${pos.latitude}, ${pos.longitude}');
+      debugPrint('🧭 bearing: $bearing (heading: ${pos.heading})');
 
       final response = await matchingService.getRestAreas(
         pos.latitude,
         pos.longitude,
+        bearing,
       );
 
       setState(() {
@@ -105,7 +117,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
             height: MediaQuery.of(context).size.height * 0.55,
             child: Stack(
               children: [
-                // ✅ 로딩 완전히 끝난 후에만 지도 렌더링 → 마커+카메라 한번에 잡힘
+                // ✅ 로딩 완전히 끝난 후에만 지도 렌더링
                 if (_myPosition != null && !_isLoading)
                   MapOverviewScreen(
                     key: _mapKey,
@@ -140,7 +152,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
                     ),
                   ),
 
-                // 상단 헤더 그라디언트 오버레이
+                // 상단 헤더 그라디언트
                 Positioned(
                   top: 0,
                   left: 0,
@@ -199,9 +211,8 @@ class _MatchingScreenState extends State<MatchingScreen> {
                   ),
                 ),
 
-                // 버튼들 (로딩 끝난 후에만 표시)
+                // 버튼들
                 if (_myPosition != null && !_isLoading) ...[
-                  // 전체보기 + 내 위치 버튼
                   Positioned(
                     bottom: 16,
                     right: 16,
@@ -252,7 +263,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
                     ),
                   ),
 
-                  // GPS 좌표 표시
+                  // GPS 좌표 + bearing 표시
                   Positioned(
                     bottom: 16,
                     left: 16,
@@ -282,7 +293,8 @@ class _MatchingScreenState extends State<MatchingScreen> {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            '${_myPosition!.latitude.toStringAsFixed(4)}°N  ${_myPosition!.longitude.toStringAsFixed(4)}°E',
+                            '${_myPosition!.latitude.toStringAsFixed(4)}°N  ${_myPosition!.longitude.toStringAsFixed(4)}°E'
+                            '  🧭${_bearing < 0 ? '-' : '${_bearing.toStringAsFixed(0)}°'}',
                             style: TextStyle(
                               fontSize: 11,
                               color: Colors.grey.shade700,

@@ -39,6 +39,9 @@ class RestArea {
 class MatchingService {
   final String baseUrl = "http://192.168.0.22:3000";
 
+  // ✅ GPS bearing 계산을 위한 이전 위치 저장
+  Position? _prevPosition;
+
   Future<Position> getCurrentLocation() async {
     if (!await Geolocator.isLocationServiceEnabled()) {
       throw Exception('위치 서비스가 꺼져 있어요.');
@@ -56,13 +59,46 @@ class MatchingService {
     );
   }
 
-  // 가까운 지역 가져오기
-  Future<List<dynamic>> getRestAreas(double lat, double lng) async {
+  /// ✅ GPS bearing 계산
+  /// - Position.heading: 기기가 이동 중일 때 GPS가 제공하는 방향값
+  /// - 유효하지 않으면 이전 위치와 현재 위치로 직접 계산
+  /// - 둘 다 없으면 -1 반환 (백엔드에서 방향 필터 스킵)
+  double calcBearing(Position current) {
+    // GPS heading이 유효한 경우 (이동 중, 0~360)
+    if (current.heading >= 0 && current.heading <= 360) {
+      _prevPosition = current;
+      return current.heading;
+    }
+
+    // 이전 위치가 있으면 두 좌표로 bearing 계산
+    if (_prevPosition != null) {
+      final bearing = Geolocator.bearingBetween(
+        _prevPosition!.latitude,
+        _prevPosition!.longitude,
+        current.latitude,
+        current.longitude,
+      );
+      _prevPosition = current;
+      // bearingBetween은 -180~180 반환 → 0~360으로 변환
+      return (bearing + 360) % 360;
+    }
+
+    _prevPosition = current;
+    // 방향 알 수 없음 → 백엔드에서 전체 방향 조회
+    return -1;
+  }
+
+  // ✅ bearing 파라미터 추가
+  Future<List<dynamic>> getRestAreas(
+    double lat,
+    double lng,
+    double bearing,
+  ) async {
     try {
       final response = await http
           .get(
             Uri.parse(
-              "$baseUrl/rest-area/nearest?lat=$lat&lng=$lng&bearing=0&limit=3",
+              "$baseUrl/rest-area/nearest?lat=$lat&lng=$lng&bearing=$bearing&limit=10",
             ),
             headers: {"Content-Type": "application/json"},
           )
