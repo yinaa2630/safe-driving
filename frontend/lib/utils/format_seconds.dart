@@ -1,4 +1,4 @@
-String secondsFormatter(int totalSeconds) {
+String formatSeconds(int totalSeconds) {
   final hours = totalSeconds ~/ 3600;
   final minutes = (totalSeconds % 3600) ~/ 60;
   final seconds = totalSeconds % 60;

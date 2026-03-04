@@ -1,16 +1,19 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_demo/providers/me_data_notifier.dart';
 import 'package:flutter_demo/theme/colors.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class SevereWarningScreen extends StatefulWidget {
+class SevereWarningScreen extends ConsumerStatefulWidget {
   const SevereWarningScreen({super.key});
 
   @override
-  State<SevereWarningScreen> createState() => _SevereWarningScreenState();
+  ConsumerState<SevereWarningScreen> createState() =>
+      _SevereWarningScreenState();
 }
 
-class _SevereWarningScreenState extends State<SevereWarningScreen> {
+class _SevereWarningScreenState extends ConsumerState<SevereWarningScreen> {
   final AudioPlayer _audioPlayer = AudioPlayer();
   @override
   void initState() {
@@ -128,7 +131,10 @@ class _SevereWarningScreenState extends State<SevereWarningScreen> {
                 ),
                 onPressed: () {
                   // TODO : 전화번호의 경우 userInfo에서 받아와야함(로그인시 provider로 관리할지?)
-                  makePhoneCall('01012345678');
+                  final meData = ref.read(meDataProvider);
+                  if (meData != null) {
+                    makePhoneCall(meData.emergencyCall);
+                  }
                 },
                 child: Text(
                   "📞 비상 연락하기",

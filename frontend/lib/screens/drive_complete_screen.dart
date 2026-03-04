@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_demo/providers/driving_id_notifier.dart';
 import 'package:flutter_demo/theme/colors.dart';
-import 'package:flutter_demo/utils/seconds_formatter.dart';
+import 'package:flutter_demo/utils/format_seconds.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_demo/service/drive_record_service.dart';
 import 'package:flutter_demo/service/matching_service.dart';
@@ -75,7 +75,7 @@ class DriveCompleteScreen extends ConsumerWidget {
                     _buildRow(
                       Icons.access_time,
                       "총 주행 시간",
-                      secondsFormatter(duration),
+                      formatSeconds(duration),
                       normal: status,
                     ),
                     _buildRow(

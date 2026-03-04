@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_demo/providers/driving_id_notifier.dart';
+import 'package:flutter_demo/providers/me_data_notifier.dart';
+import 'package:flutter_demo/service/auth_service.dart';
 import 'package:flutter_demo/theme/colors.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'widgets/monthly_calendar_widget.dart';
@@ -8,13 +10,35 @@ import 'package:camera/camera.dart';
 import 'package:flutter_demo/service/matching_service.dart';
 import 'package:flutter_demo/service/drive_record_service.dart';
 
-class MainScreen extends ConsumerWidget {
+class MainScreen extends ConsumerStatefulWidget {
+  const MainScreen({super.key, required this.camera});
   final CameraDescription camera;
 
-  const MainScreen({super.key, required this.camera});
+  @override
+  ConsumerState<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends ConsumerState<MainScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _loadMe();
+  }
+
+  Future<void> _loadMe() async {
+    final AuthService authService = AuthService();
+    final meJson = await authService.getMe();
+
+    if (!mounted) return;
+
+    if (meJson != null) {
+      final me = MeData.fromJson(meJson);
+      ref.read(meDataProvider.notifier).setData(me);
+    }
+  }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -151,12 +175,14 @@ class MainScreen extends ConsumerWidget {
                   );
 
                   if (driveId != null) {
-                    ref.read(drivingIdProvider.notifier).setId(driveId.toString());
+                    ref
+                        .read(drivingIdProvider.notifier)
+                        .setId(driveId.toString());
 
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => DrowsinessScreen(camera: camera),
+                        builder: (_) => DrowsinessScreen(camera: widget.camera),
                       ),
                     );
                   } else {
@@ -166,7 +192,7 @@ class MainScreen extends ConsumerWidget {
                   print("❌ 위치 가져오기 실패: $e");
                 }
               },
-              
+
               child: const Text(
                 "주행 시작하기",
                 style: TextStyle(
