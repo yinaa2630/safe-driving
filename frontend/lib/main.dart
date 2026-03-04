@@ -4,6 +4,7 @@ import 'package:flutter_demo/screens/drive_complete_screen.dart';
 import 'package:flutter_demo/screens/login_screen.dart';
 import 'package:flutter_demo/screens/main_screen.dart';
 import 'package:flutter_demo/screens/matching_screen.dart';
+import 'package:flutter_demo/screens/severe_warning_screen.dart';
 import 'package:flutter_demo/screens/signup_screen.dart';
 import 'package:flutter_demo/theme/colors.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -38,9 +39,7 @@ void main() async {
   final String? token = await storage.read(key: 'user_token');
 
   runApp(
-    ProviderScope(
-      child: MyApp(initialRoute: token != null ? '/main' : '/'),
-    ),
+    ProviderScope(child: MyApp(initialRoute: token != null ? '/main' : '/')),
   );
 }
 
@@ -62,8 +61,9 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Secure Drowsiness App',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: mainGreen)
-            .copyWith(onSurface: textPrimary, onPrimary: bgWhite),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: mainGreen,
+        ).copyWith(onSurface: textPrimary, onPrimary: bgWhite),
         fontFamily: 'WantedSans',
         scaffoldBackgroundColor: pageBg,
       ),
@@ -73,12 +73,11 @@ class MyApp extends StatelessWidget {
         '/signup': (context) => SignUpScreen(),
         '/main': (context) => selectedCamera != null
             ? MainScreen(camera: selectedCamera)
-            : const Scaffold(
-                body: Center(child: Text('카메라를 찾을 수 없어요.')),
-              ),
+            : const Scaffold(body: Center(child: Text('카메라를 찾을 수 없어요.'))),
         '/matching': (context) => MatchingScreen(),
         '/profile': (context) => const ProfileScreen(),
         '/complete': (context) => const DriveCompleteScreen(),
+        '/warning': (context) => const SevereWarningScreen(),
       },
     );
   }

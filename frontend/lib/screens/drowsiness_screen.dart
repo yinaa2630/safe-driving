@@ -2,7 +2,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter_demo/providers/driving_id_notifier.dart';
-import 'package:flutter_demo/screens/severe_warning_screen.dart';
+import 'package:flutter_demo/service/drive_record_service.dart';
 import 'package:flutter_demo/service/face_mesh_service.dart';
 import 'package:flutter_demo/service/matching_service.dart';
 import 'package:flutter_demo/service/tflite_service.dart';
@@ -50,6 +50,9 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
   int _frameCount = 0;
   int _blinkCount = 0; // 전체 깜빡임 횟수
   bool _isEyeClosed = false; // 현재 눈이 감겨있는 상태인지 체크
+
+  // 운전 종료시 UI 로딩
+  bool _isEnding = false;
 
   // 눈 랜드마크 인덱스 (고정값)
   final List<int> _leftEyeIdx = [160, 144, 158, 153, 33, 133];
@@ -282,12 +285,8 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
               score: avgScore,
             );
           }
-
-          // TODO : 경고상태일 때 서버에 avgScore 데이터 보냄
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const SevereWarningScreen()),
-          ).then((_) {
+          _setDriveSummary();
+          Navigator.pushNamed(context, '/warning').then((_) async {
             _isSeverePushed = false;
             _modelDrowsyCounter = 0; // 카운터 초기화
             _scoreHistory.clear(); // 점수 히스토리 완전 삭제
@@ -295,6 +294,9 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
             _isDrowsy = false; // 졸음 상태 해제
             _drowsyStartTime = null; // 시작 시간 초기화
             _isEyeClosed = false; // 눈깜빡임 상태 초기화
+            if (!_controller.value.isStreamingImages) {
+              await _controller.startImageStream(_processCameraImage);
+            }
           });
         }
       }
@@ -309,6 +311,22 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
         });
       }
     }
+  }
+
+  void _setDriveSummary() {
+    final duration = DateTime.now().difference(_startTime).inSeconds;
+
+    final avg = _scoreSamples == 0 ? 0.0 : _totalScore / _scoreSamples;
+    ref
+        .read(driveSummaryProvider.notifier)
+        .setSummary(
+          DriveSummary(
+            duration: duration,
+            avgDrowsiness: avg,
+            warningCount: _warningCount,
+            attentionCount: _attentionCount,
+          ),
+        );
   }
 
   @override
@@ -431,28 +449,65 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () {
-                          final duration = DateTime.now()
-                              .difference(_startTime)
-                              .inSeconds;
+                        onPressed: _isEnding
+                            ? null
+                            : () async {
+                                setState(() {
+                                  _isEnding = true;
+                                });
 
-                          final avg = _scoreSamples == 0
-                              ? 0.0
-                              : _totalScore / _scoreSamples;
+                                _setDriveSummary();
+                                final driveIdStr = ref.read(drivingIdProvider);
+                                if (!mounted) return;
+                                if (driveIdStr != null) {
+                                  final driveId = int.parse(driveIdStr);
+                                  final driveService = DriveRecordService();
+                                  final matchingService = MatchingService();
+                                  final duration = DateTime.now()
+                                      .difference(_startTime)
+                                      .inSeconds;
 
-                          ref
-                              .read(driveSummaryProvider.notifier)
-                              .setSummary(
-                                DriveSummary(
-                                  duration: duration,
-                                  avgDrowsiness: avg,
-                                  warningCount: _warningCount,
-                                  attentionCount: _attentionCount,
-                                ),
-                              );
+                                  final avg = _scoreSamples == 0
+                                      ? 0.0
+                                      : _totalScore / _scoreSamples;
+                                  try {
+                                    final pos = await matchingService
+                                        .getCurrentLocation();
+                                    final success = await driveService.endDrive(
+                                      driveId: driveId,
+                                      endTime: DateTime.now(),
+                                      duration: duration,
+                                      avgDrowsiness: avg,
+                                      warningCount: _warningCount,
+                                      attentionCount: _attentionCount,
+                                      endLat: pos.latitude,
+                                      endLng: pos.longitude,
+                                    );
+                                    if (success) {
+                                      Navigator.pushNamedAndRemoveUntil(
+                                        context,
+                                        '/complete',
+                                        (route) =>
+                                            route.settings.name == '/main',
+                                      );
+                                    }
+                                  } catch (e) {
+                                    if (!mounted) return;
 
-                          Navigator.pushNamed(context, '/complete');
-                        },
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text("종료중 처리 에러"),
+                                      ),
+                                    );
+                                  } finally {
+                                    if (mounted) {
+                                      setState(() {
+                                        _isEnding = false;
+                                      });
+                                    }
+                                  }
+                                }
+                              },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.black,
                           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -460,14 +515,25 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
                             borderRadius: BorderRadius.circular(14),
                           ),
                         ),
-                        child: const Text(
-                          "운전 종료",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        child: _isEnding
+                            ? const SizedBox(
+                                height: 22,
+                                width: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              )
+                            : const Text(
+                                "운전 종료",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                       ),
                     ),
                   ],
