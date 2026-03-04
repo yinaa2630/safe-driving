@@ -22,6 +22,7 @@ import { DriveEvent } from './model-result/model-result.entity';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: '../.env',
     }),
 
     TypeOrmModule.forRoot({

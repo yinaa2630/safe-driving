@@ -12,6 +12,8 @@ export class RestAreaController {
     @Query('bearing') bearing: string,
     @Query('limit') limit: string,
   ) {
+    console.log('📥 받은 bearing:', bearing, 'parsed:', parseFloat(bearing));
+
     return this.restAreaService.findNearest(
       parseFloat(lat),
       parseFloat(lng),
