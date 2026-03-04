@@ -49,8 +49,9 @@ class TFLiteService {
   ) {
     if (_interpreter == null ||
         meshPoints.isEmpty ||
-        meshPoints.length <= _maxIndex)
+        meshPoints.length <= _maxIndex) {
       return null;
+    }
 
     try {
       final center = meshPoints[168];

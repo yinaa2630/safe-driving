@@ -98,7 +98,7 @@ export class AuthService {
   async getProfile(userId: number) {
     const user = await this.userRepository.findOne({
       where: { id: userId },
-      select: ['id', 'email', 'username'], // password 제외
+      select: ['id', 'email', 'username','emergencyCall'], // password 제외
     });
 
     if (!user) {

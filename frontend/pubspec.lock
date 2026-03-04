@@ -444,10 +444,10 @@ packages:
     dependency: "direct main"
     description:
       name: http
-      sha256: "5895291c13fa8a3bd82e76d5627f69e0d85ca6a30dcac95c4ea19a5d555879c2"
+      sha256: "87721a4a50b19c7f1d49001e51409bddc46303966ce89a65af4f4e6004896412"
       url: "https://pub.dev"
     source: hosted
-    version: "0.13.6"
+    version: "1.6.0"
   http_multi_server:
     dependency: transitive
     description:
@@ -480,14 +480,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.5"
-  kakao_map_plugin:
+  kakao_map_sdk:
     dependency: "direct main"
     description:
-      name: kakao_map_plugin
-      sha256: "26a77a1a826ec4003ff88f57aaf80e63690f7b5ca1e05c25c986dd54ccc72e0f"
+      name: kakao_map_sdk
+      sha256: bc61a733c137d93244360bd490b18d10a676e354f65dafd9dc60c81b72ac194b
       url: "https://pub.dev"
     source: hosted
-    version: "0.4.0"
+    version: "1.2.5"
   leak_tracker:
     dependency: transitive
     description:
@@ -997,38 +997,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.2.1"
-  webview_flutter:
-    dependency: transitive
-    description:
-      name: webview_flutter
-      sha256: a3da219916aba44947d3a5478b1927876a09781174b5a2b67fa5be0555154bf9
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.13.1"
-  webview_flutter_android:
-    dependency: transitive
-    description:
-      name: webview_flutter_android
-      sha256: "2a03df01df2fd30b075d1e7f24c28aee593f2e5d5ac4c3c4283c5eda63717b24"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.10.13"
-  webview_flutter_platform_interface:
-    dependency: transitive
-    description:
-      name: webview_flutter_platform_interface
-      sha256: "63d26ee3aca7256a83ccb576a50272edd7cfc80573a4305caa98985feb493ee0"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.14.0"
-  webview_flutter_wkwebview:
-    dependency: transitive
-    description:
-      name: webview_flutter_wkwebview
-      sha256: "108bd85d0ff20bff1e8b52a040f5c19b6b9fc4a78fdf3160534ff5a11a82e267"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.23.7"
   win32:
     dependency: transitive
     description:
