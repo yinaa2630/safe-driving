@@ -374,93 +374,102 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
           Positioned(
             left: 0,
             right: 0,
-            bottom: 50,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(28),
+            bottom: 0,
+            child: SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 20,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    offset: const Offset(0, -2),
-                    blurRadius: 8,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(28),
                   ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 작은 바
-                  Container(
-                    width: 42,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: Colors.black12,
-                      borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      offset: const Offset(0, -2),
+                      blurRadius: 8,
                     ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // 3개 정보 박스
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildBottomInfo("EAR", _currentEAR.toStringAsFixed(3)),
-                      _buildBottomInfo("졸린눈", "$_blinkCount회"), // ✨ 추가
-                      _buildBottomInfo("졸음수치", _drowsyScore.toStringAsFixed(3)),
-                      _buildBottomInfo("상태", _isDrowsy ? "주의" : "정상"),
-                    ],
-                  ),
-
-                  const SizedBox(height: 26),
-
-                  // 운전 종료 버튼
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        final duration = DateTime.now()
-                            .difference(_startTime)
-                            .inSeconds;
-
-                        final avg = _scoreSamples == 0
-                            ? 0.0
-                            : _totalScore / _scoreSamples;
-
-                        ref
-                            .read(driveSummaryProvider.notifier)
-                            .setSummary(
-                              DriveSummary(
-                                duration: duration,
-                                avgDrowsiness: avg,
-                                warningCount: _warningCount,
-                                attentionCount: _attentionCount,
-                              ),
-                            );
-
-                        Navigator.pushNamed(context, '/complete');
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: const Text(
-                        "운전 종료",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 작은 바
+                    Container(
+                      width: 42,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.black12,
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 20),
+
+                    // 3개 정보 박스
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _buildBottomInfo("EAR", _currentEAR.toStringAsFixed(3)),
+                        _buildBottomInfo("졸린눈", "$_blinkCount회"), // ✨ 추가
+                        _buildBottomInfo(
+                          "졸음수치",
+                          _drowsyScore.toStringAsFixed(3),
+                        ),
+                        _buildBottomInfo("상태", _isDrowsy ? "주의" : "정상"),
+                      ],
+                    ),
+
+                    const SizedBox(height: 26),
+
+                    // 운전 종료 버튼
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          final duration = DateTime.now()
+                              .difference(_startTime)
+                              .inSeconds;
+
+                          final avg = _scoreSamples == 0
+                              ? 0.0
+                              : _totalScore / _scoreSamples;
+
+                          ref
+                              .read(driveSummaryProvider.notifier)
+                              .setSummary(
+                                DriveSummary(
+                                  duration: duration,
+                                  avgDrowsiness: avg,
+                                  warningCount: _warningCount,
+                                  attentionCount: _attentionCount,
+                                ),
+                              );
+
+                          Navigator.pushNamed(context, '/complete');
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text(
+                          "운전 종료",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
