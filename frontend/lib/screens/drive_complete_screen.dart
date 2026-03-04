@@ -79,13 +79,13 @@ class DriveCompleteScreen extends ConsumerWidget {
                       normal: status,
                     ),
                     _buildRow(
-                      Icons.access_time,
+                      Icons.error,
                       "주의 횟수",
                       "$attentionCount회",
                       normal: status,
                     ),
                     _buildRow(
-                      Icons.access_time,
+                      Icons.warning,
                       "경고 횟수",
                       "$warningCount회",
                       normal: status,

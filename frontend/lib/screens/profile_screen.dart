@@ -55,8 +55,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               meData.email,
               style: const TextStyle(fontSize: 14, color: textMedium),
             ),
+            const SizedBox(height: 10),
             Text(
-              '비상 연락처 ${formatPhoneNumber(meData.emergencyCall)}',
+              '☎비상 연락처',
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+                color: textMedium,
+              ),
+            ),
+            Text(
+              formatPhoneNumber(meData.emergencyCall),
               style: const TextStyle(fontSize: 14, color: textMedium),
             ),
             const SizedBox(height: 40),

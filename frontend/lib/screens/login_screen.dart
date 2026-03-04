@@ -37,9 +37,9 @@ class _LoginScreenState extends State<LoginScreen> {
     if (token != null) {
       Navigator.pushReplacementNamed(context, '/main');
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("로그인 실패")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("로그인 실패")));
     }
   }
 
@@ -49,10 +49,29 @@ class _LoginScreenState extends State<LoginScreen> {
       resizeToAvoidBottomInset: false,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28.0),
+          padding: const EdgeInsets.only(top: 40, left: 28.0, right: 28.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              RichText(
+                text: const TextSpan(
+                  style: TextStyle(
+                    fontSize: 56,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: 'DRIVE\n',
+                      style: TextStyle(color: inkBlack),
+                    ),
+                    TextSpan(
+                      text: 'SAFE',
+                      style: TextStyle(color: mainGreen),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 40),
 
               const Text(
@@ -177,8 +196,7 @@ class _LoginScreenState extends State<LoginScreen> {
         decoration: InputDecoration(
           border: InputBorder.none,
           hintText: hint,
-          hintStyle:
-              const TextStyle(color: textLight, fontSize: 14),
+          hintStyle: const TextStyle(color: textLight, fontSize: 14),
         ),
       ),
     );
