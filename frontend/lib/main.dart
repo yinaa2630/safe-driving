@@ -10,24 +10,19 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_demo/screens/profile_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
-import 'package:flutter_demo/screens/map_overview_screen.dart';
 
 late List<CameraDescription> cameras;
+
+// ✅ 카카오 네이티브 앱 키 직접 입력
+const _kakaoNativeAppKey = 'e74d2b161fac47a3985f30b5c19335cc';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ✅ Kakao 네이티브 앱 키는 dart-define으로 주입 (깃에 키 노출 방지)
-  const kakaoNativeAppKey = String.fromEnvironment('KAKAO_NATIVE_APP_KEY');
-
-  if (kakaoNativeAppKey.isEmpty) {
-    debugPrint('❌ KAKAO_NATIVE_APP_KEY 가 비어있어요. --dart-define으로 주입하세요.');
-  } else {
-    await KakaoMapSdk.instance.initialize(kakaoNativeAppKey);
-
-    final hashKey = await KakaoMapSdk.instance.hashKey();
-    debugPrint('🔑 키 해시: $hashKey');
-  }
+  // ✅ 카카오맵 초기화
+  await KakaoMapSdk.instance.initialize(_kakaoNativeAppKey);
+  final hashKey = await KakaoMapSdk.instance.hashKey();
+  debugPrint('🔑 키 해시: $hashKey');
 
   // ✅ 카메라 초기화
   try {
@@ -46,17 +41,6 @@ void main() async {
       child: MyApp(initialRoute: token != null ? '/main' : '/'),
     ),
   );
-}
-
-/// ✅ MapOverviewScreen으로 넘길 arguments 타입
-class MapOverviewArgs {
-  final List<LatLng> drowsyShelters;
-  final List<LatLng> restAreas;
-
-  const MapOverviewArgs({
-    required this.drowsyShelters,
-    required this.restAreas,
-  });
 }
 
 class MyApp extends StatelessWidget {
@@ -83,8 +67,6 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: pageBg,
       ),
       initialRoute: initialRoute,
-
-      /// ✅ 기본 routes (데이터 필요 없는 화면만)
       routes: {
         '/': (context) => LoginScreen(),
         '/signup': (context) => SignUpScreen(),
@@ -96,35 +78,6 @@ class MyApp extends StatelessWidget {
         '/matching': (context) => MatchingScreen(),
         '/profile': (context) => const ProfileScreen(),
         '/complete': (context) => const DriveCompleteScreen(),
-      },
-
-      /// ✅ 데이터 필요한 라우트는 여기서 처리
-      onGenerateRoute: (settings) {
-        if (settings.name == '/map_overview') {
-          final args = settings.arguments;
-
-          if (args is MapOverviewArgs) {
-            return MaterialPageRoute(
-              builder: (_) => MapOverviewScreen(
-                drowsyShelters: args.drowsyShelters,
-                restAreas: args.restAreas,
-              ),
-              settings: settings,
-            );
-          }
-
-          // args가 없거나 타입이 틀리면 안내 화면
-          return MaterialPageRoute(
-            builder: (_) => const Scaffold(
-              body: Center(
-                child: Text('지도 화면에 필요한 데이터(arguments)가 없어요.'),
-              ),
-            ),
-            settings: settings,
-          );
-        }
-
-        return null;
       },
     );
   }

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_demo/screens/map_overview_screen.dart';
 import 'package:flutter_demo/service/matching_service.dart';
 import 'package:flutter_demo/theme/colors.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:kakao_map_sdk/kakao_map_sdk.dart';
 
 class MatchingScreen extends StatefulWidget {
   const MatchingScreen({super.key});
@@ -13,7 +13,7 @@ class MatchingScreen extends StatefulWidget {
 
 class _MatchingScreenState extends State<MatchingScreen> {
   final matchingService = MatchingService();
-  KakaoMapController? _mapController;
+  final _mapKey = GlobalKey<MapOverviewScreenState>();
 
   Position? _myPosition;
   List<RestArea> _restAreas = [];
@@ -41,65 +41,15 @@ class _MatchingScreenState extends State<MatchingScreen> {
         pos.longitude,
       );
 
-      _restAreas = response.map((e) => RestArea.fromJson(e)).toList();
-      setState(() {});
-
-      if (_mapController != null) {
-        await _updateMap();
-      }
+      setState(() {
+        _restAreas = response.map((e) => RestArea.fromJson(e)).toList();
+      });
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
       setState(() => _isLoading = false);
     }
   }
-
-Future<void> _updateMap() async {
-  if (_mapController == null || _myPosition == null) return;
-
-  final myLatLng = LatLng(_myPosition!.latitude, _myPosition!.longitude);
-
-  // 내 위치 마커 - 파란 원
-  await _mapController!.labelLayer.addPoi(
-    myLatLng,
-    style: PoiStyle(
-      icon: KImage.fromAsset('assets/marker/my_location.png', 40, 40),
-    ),
-  );
-
-  // 휴게소/졸음쉼터 마커
-  for (final area in _restAreas) {
-    await _mapController!.labelLayer.addPoi(
-      LatLng(area.latitude, area.longitude),
-      style: PoiStyle(
-        icon: KImage.fromAsset(
-          area.isDrowsyShelter
-              ? 'assets/marker/drowsy.png'
-              : 'assets/marker/rest_area.png',
-          30, 42,
-        ),
-      ),
-    );
-  }
-
-  // 중심점으로 카메라 이동
-  if (_restAreas.isNotEmpty) {
-    final allLats = [_myPosition!.latitude, ..._restAreas.map((a) => a.latitude)];
-    final allLngs = [_myPosition!.longitude, ..._restAreas.map((a) => a.longitude)];
-    final centerLat = (allLats.reduce((a, b) => a < b ? a : b) + allLats.reduce((a, b) => a > b ? a : b)) / 2;
-    final centerLng = (allLngs.reduce((a, b) => a < b ? a : b) + allLngs.reduce((a, b) => a > b ? a : b)) / 2;
-
-    await _mapController!.moveCamera(
-      CameraUpdate.newCenterPosition(LatLng(centerLat, centerLng)),
-      animation: const CameraAnimation(800),
-    );
-  } else {
-    await _mapController!.moveCamera(
-      CameraUpdate.newCenterPosition(myLatLng),
-      animation: const CameraAnimation(500),
-    );
-  }
-}
 
   Future<void> _onMoveTap(RestArea area) async {
     final ok = await showDialog<bool>(
@@ -138,19 +88,11 @@ Future<void> _updateMap() async {
   }
 
   void _moveToArea(RestArea area) {
-    _mapController?.moveCamera(
-      CameraUpdate.newCenterPosition(
-        LatLng(area.latitude, area.longitude),
-      ),
-      animation: const CameraAnimation(500),
-    );
+    _mapKey.currentState?.moveToLocation(area.latitude, area.longitude);
   }
 
   @override
   Widget build(BuildContext context) {
-    final initLat = _myPosition?.latitude ?? 37.5;
-    final initLng = _myPosition?.longitude ?? 127.0;
-
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       body: Stack(
@@ -163,21 +105,40 @@ Future<void> _updateMap() async {
             height: MediaQuery.of(context).size.height * 0.55,
             child: Stack(
               children: [
-                // 카카오맵
-                KakaoMap(
-                  option: KakaoMapOption(
-                    position: LatLng(initLat, initLng),
-                    zoomLevel: 13,
-                    mapType: MapType.normal,
+                // ✅ 로딩 완전히 끝난 후에만 지도 렌더링 → 마커+카메라 한번에 잡힘
+                if (_myPosition != null && !_isLoading)
+                  MapOverviewScreen(
+                    key: _mapKey,
+                    myPosition: _myPosition!,
+                    drowsyShelters: _restAreas
+                        .where((a) => a.isDrowsyShelter)
+                        .toList(),
+                    restAreas: _restAreas
+                        .where((a) => !a.isDrowsyShelter)
+                        .toList(),
+                  )
+                else
+                  Container(
+                    color: const Color(0xFFE8EAF6),
+                    child: const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(
+                            color: Color(0xFF3F51B5),
+                          ),
+                          SizedBox(height: 12),
+                          Text(
+                            '위치 및 쉼터 정보를 불러오는 중...',
+                            style: TextStyle(
+                              color: Color(0xFF3F51B5),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  onMapReady: (controller) async {
-                    print('🗺️ 지도 준비 완료!');
-                    _mapController = controller;
-                    if (_myPosition != null) {
-                      await _updateMap();
-                    }
-                  },
-                ),
 
                 // 상단 헤더 그라디언트 오버레이
                 Positioned(
@@ -238,82 +199,101 @@ Future<void> _updateMap() async {
                   ),
                 ),
 
-                // 내 위치로 돌아가기 버튼
-                Positioned(
-                  bottom: 16,
-                  right: 16,
-                  child: GestureDetector(
-                    onTap: () {
-                      if (_myPosition != null) {
-                        _mapController?.moveCamera(
-                          CameraUpdate.newCenterPosition(
-                            LatLng(_myPosition!.latitude, _myPosition!.longitude),
+                // 버튼들 (로딩 끝난 후에만 표시)
+                if (_myPosition != null && !_isLoading) ...[
+                  // 전체보기 + 내 위치 버튼
+                  Positioned(
+                    bottom: 16,
+                    right: 16,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        GestureDetector(
+                          onTap: () => _mapKey.currentState?.fitAll(),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            margin: const EdgeInsets.only(bottom: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.15),
+                                  blurRadius: 8,
+                                ),
+                              ],
+                            ),
+                            child: const Icon(Icons.zoom_out_map,
+                                color: Color(0xFF3F51B5), size: 22),
                           ),
-                          animation: const CameraAnimation(500),
-                        );
-                      }
-                    },
+                        ),
+                        GestureDetector(
+                          onTap: () => _mapKey.currentState?.moveToLocation(
+                            _myPosition!.latitude,
+                            _myPosition!.longitude,
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.15),
+                                  blurRadius: 8,
+                                ),
+                              ],
+                            ),
+                            child: const Icon(Icons.gps_fixed,
+                                color: Color(0xFF3F51B5), size: 22),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // GPS 좌표 표시
+                  Positioned(
+                    bottom: 16,
+                    left: 16,
                     child: Container(
-                      padding: const EdgeInsets.all(10),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.15),
-                            blurRadius: 8,
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 6,
                           ),
                         ],
                       ),
-                      child: const Icon(Icons.gps_fixed,
-                          color: Color(0xFF3F51B5), size: 22),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: mainGreen,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '${_myPosition!.latitude.toStringAsFixed(4)}°N  ${_myPosition!.longitude.toStringAsFixed(4)}°E',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade700,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-
-                // GPS 좌표 표시
-                Positioned(
-                  bottom: 16,
-                  left: 16,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.9),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 6,
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: _myPosition != null ? mainGreen : warnYellow,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          _myPosition != null
-                              ? '${_myPosition!.latitude.toStringAsFixed(4)}°N  ${_myPosition!.longitude.toStringAsFixed(4)}°E'
-                              : 'GPS 수신 중...',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey.shade700,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                ],
               ],
             ),
           ),
@@ -383,8 +363,8 @@ Future<void> _updateMap() async {
                                       Text(
                                         _error!,
                                         textAlign: TextAlign.center,
-                                        style:
-                                            const TextStyle(color: Colors.red),
+                                        style: const TextStyle(
+                                            color: Colors.red),
                                       ),
                                       const SizedBox(height: 12),
                                       ElevatedButton(
