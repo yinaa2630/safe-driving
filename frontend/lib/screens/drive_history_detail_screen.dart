@@ -1,15 +1,36 @@
 import 'package:flutter/material.dart';
 import 'widgets/monthly_calendar_widget.dart';
 import 'drive_chart_tab.dart';
-import 'package:flutter_demo/data/mock_drive_data.dart';
+// import 'package:flutter_demo/data/mock_drive_data.dart';
+import '../service/drive_record_service.dart';
 
-class DriveHistoryDetailScreen extends StatelessWidget {
+class DriveHistoryDetailScreen extends StatefulWidget {
   const DriveHistoryDetailScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final records = MockDriveData.getData();
+  State<DriveHistoryDetailScreen> createState() =>
+      _DriveHistoryDetailScreenState();
+}
 
+class _DriveHistoryDetailScreenState extends State<DriveHistoryDetailScreen> {
+  List<dynamic> records = [];
+
+  @override
+  void initState() {
+    super.initState();
+    loadRecords();
+  }
+
+  Future<void> loadRecords() async {
+    final data = await DriveRecordService().getDriveRecords();
+
+    setState(() {
+      records = data;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return DefaultTabController(
       length: 3,
       child: Scaffold(
@@ -45,12 +66,13 @@ class DriveHistoryDetailScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                              "${record.date.year}.${record.date.month}.${record.date.day}"),
-                          Text("${record.duration.inMinutes}분"),
+                            record["driveDate"],
+                          ),
+                          Text("${(record["duration"] ?? 0) ~/ 60}분"),
                         ],
                       ),
                       Text(
-                        record.score.toStringAsFixed(0),
+                        ((record["avgDrowsiness"] ?? 0) * 100).toStringAsFixed(0),
                         style: const TextStyle(fontSize: 16),
                       ),
                     ],

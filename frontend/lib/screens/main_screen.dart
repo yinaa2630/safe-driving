@@ -21,10 +21,13 @@ class MainScreen extends ConsumerStatefulWidget {
 class _MainScreenState extends ConsumerState<MainScreen> {
   bool _isStarting = false;
 
+  List<dynamic> records = [];
+
   @override
   void initState() {
     super.initState();
     _loadMe();
+    _loadDriveRecords();  
   }
 
   Future<void> _loadMe() async {
@@ -37,6 +40,16 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       final me = MeData.fromJson(meJson);
       ref.read(meDataProvider.notifier).setData(me);
     }
+  }
+
+  Future<void> _loadDriveRecords() async {
+    final data = await DriveRecordService().getDriveRecords();
+
+    if (!mounted) return;
+
+    setState(() {
+      records = data.take(3).toList(); // 메인스크린에선 최근 3개만, 백엔드에선 10개 넘겨줌(이건 상세페이지)
+    });
   }
 
   @override
@@ -86,18 +99,34 @@ class _MainScreenState extends ConsumerState<MainScreen> {
 
                     const SizedBox(height: 16),
 
-                    _driveHistoryItem(
-                      date: "2026. 02. 20",
-                      duration: "36분",
-                      status: "안전",
-                    ),
+                    Column(
+                      children: records.map((record) {
+                        final date = DateTime.parse(
+                          record["driveDate"] ?? DateTime.now().toIso8601String(),
+                        );
 
-                    const SizedBox(height: 12),
+                        final int duration = record["duration"] ?? 0;
+                        final double score =
+                            ((record["avgDrowsiness"] ?? 0.0) as num).toDouble() * 100;
 
-                    _driveHistoryItem(
-                      date: "2026. 02. 18",
-                      duration: "1시간 12분",
-                      status: "주의 발생 1회",
+                        String status;
+                        if (score >= 80) {
+                          status = "안전";
+                        } else if (score >= 60) {
+                          status = "주의";
+                        } else {
+                          status = "위험";
+                        }
+
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _driveHistoryItem(
+                            date: "${date.year}.${date.month}.${date.day}",
+                            duration: "${duration ~/ 60}분",
+                            status: status,
+                          ),
+                        );
+                      }).toList(),
                     ),
 
                     const SizedBox(height: 32),

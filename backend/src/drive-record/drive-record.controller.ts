@@ -6,6 +6,7 @@ import {
   Body,
   UseGuards,
   Req,
+  Get,
 } from '@nestjs/common';
 import { DriveRecordService } from './drive-record.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -33,10 +34,14 @@ export class DriveRecordController {
     @Body() body: any,
   ) {
     const userId = req.user.userId;
-    return this.driveRecordService.endDrive(
-      +id,
-      body,
-      userId,
-    );
+    return this.driveRecordService.endDrive(+id, body, userId);
+  }
+
+  // 최근 주행 기록 조회
+  @UseGuards(JwtAuthGuard)
+  @Get()
+  async getMyRecords(@Req() req: any) {
+    const userId = req.user.userId;
+    return this.driveRecordService.getMyRecords(userId);
   }
 }
