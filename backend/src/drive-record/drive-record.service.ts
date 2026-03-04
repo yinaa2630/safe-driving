@@ -54,4 +54,13 @@ export class DriveRecordService {
 
     return this.driveRecordRepository.save(record);
   }
+
+  // 내 주행 기록 조회
+  async getMyRecords(userId: number) {
+    return this.driveRecordRepository.find({
+      where: { userId },
+      order: { driveDate: 'DESC' },
+      take: 10, // 최근 10개
+    });
+  }
 }

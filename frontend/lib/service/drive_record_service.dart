@@ -93,4 +93,35 @@ class DriveRecordService {
       return false;
     }
   }
+
+  /// !! 내 주행 기록 조회 !!
+  Future<List<dynamic>> getDriveRecords() async {
+    try {
+      final token = await storage.read(key: 'user_token');
+      if (token == null) {
+        print("❌ 토큰 없음");
+        return [];
+      }
+
+      final response = await http.get(
+        Uri.parse("$baseUrl/drive-record"),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+      );
+
+      print("GET STATUS: ${response.statusCode}");
+      print("GET BODY: ${response.body}");
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+
+      return [];
+    } catch (e) {
+      print("❌ getDriveRecords 예외: $e");
+      return [];
+    }
+  }
 }

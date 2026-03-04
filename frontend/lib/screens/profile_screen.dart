@@ -29,7 +29,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final meData = ref.read(meDataProvider);
+    final meData = ref.watch(meDataProvider);
     if (meData == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }

@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_demo/theme/colors.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../models/drive_record.dart';
-import 'package:flutter_demo/data/mock_drive_data.dart';
+import '../../service/drive_record_service.dart';
+// import 'package:flutter_demo/data/mock_drive_data.dart';
 
 enum DriveStatus { none, good, normal, bad }
 
@@ -17,15 +18,36 @@ class _MonthlyCalendarWidgetState extends State<MonthlyCalendarWidget> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
-  final List<DriveRecord> records = MockDriveData.getData();
+  List<dynamic> records = [];
+
+  @override
+  void initState() {
+    super.initState();
+    loadRecords();
+  }
+
+  Future<void> loadRecords() async {
+    final data = await DriveRecordService().getDriveRecords();
+
+    setState(() {
+      records = data;
+    });
+  }
 
   DriveStatus _getStatus(DateTime day) {
     for (var record in records) {
-      if (record.date.year == day.year &&
-          record.date.month == day.month &&
-          record.date.day == day.day) {
-        if (record.score >= 80) return DriveStatus.good;
-        if (record.score >= 60) return DriveStatus.normal;
+      final date = DateTime.parse(
+        record["driveDate"] ?? DateTime.now().toIso8601String(),
+      );
+
+      final score =
+          ((record["avgDrowsiness"] ?? 0) as num).toDouble() * 100;
+
+      if (date.year == day.year &&
+          date.month == day.month &&
+          date.day == day.day) {
+        if (score >= 80) return DriveStatus.good;
+        if (score >= 60) return DriveStatus.normal;
         return DriveStatus.bad;
       }
     }
