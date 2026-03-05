@@ -9,6 +9,7 @@ import 'drowsiness_screen.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter_demo/service/matching_service.dart';
 import 'package:flutter_demo/service/drive_record_service.dart';
+import 'package:flutter_demo/utils/format_seconds.dart';
 
 class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key, required this.camera});
@@ -27,7 +28,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   void initState() {
     super.initState();
     _loadMe();
-    _loadDriveRecords();  
+    _loadDriveRecords();
   }
 
   Future<void> _loadMe() async {
@@ -48,7 +49,9 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     if (!mounted) return;
 
     setState(() {
-      records = data.take(3).toList(); // 메인스크린에선 최근 3개만, 백엔드에선 10개 넘겨줌(이건 상세페이지)
+      records = data
+          .take(3)
+          .toList(); // 메인스크린에선 최근 3개만, 백엔드에선 10개 넘겨줌(이건 상세페이지)
     });
   }
 
@@ -102,27 +105,36 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                     Column(
                       children: records.map((record) {
                         final date = DateTime.parse(
-                          record["driveDate"] ?? DateTime.now().toIso8601String(),
+                          record["driveDate"] ??
+                              DateTime.now().toIso8601String(),
                         );
 
                         final int duration = record["duration"] ?? 0;
                         final double score =
-                            ((record["avgDrowsiness"] ?? 0.0) as num).toDouble() * 100;
+                            ((record["avgDrowsiness"] ?? 0.0) as num)
+                                .toDouble() *
+                            100;
+                        final warningCount = record['warningCount'] ?? 0;
+                        final attentionCount = record['attentionCount'] ?? 0;
 
                         String status;
-                        if (score >= 80) {
-                          status = "안전";
-                        } else if (score >= 60) {
+                        if (score >= 80 ||
+                            warningCount > 0 ||
+                            attentionCount > 3) {
+                          status = "위험";
+                        } else if (score >= 60 || attentionCount > 1) {
                           status = "주의";
                         } else {
-                          status = "위험";
+                          status = "안전";
                         }
 
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 12),
                           child: _driveHistoryItem(
                             date: "${date.year}.${date.month}.${date.day}",
-                            duration: "${duration ~/ 60}분",
+                            duration: formatSeconds(duration),
+                            attentionCount: attentionCount,
+                            warningCount: warningCount,
                             status: status,
                           ),
                         );
@@ -299,6 +311,8 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   Widget _driveHistoryItem({
     required String date,
     required String duration,
+    required int? attentionCount,
+    required int? warningCount,
     required String status,
   }) {
     return Container(
@@ -329,13 +343,67 @@ class _MainScreenState extends ConsumerState<MainScreen> {
               ),
             ],
           ),
-          Text(
-            status,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: mainGreen,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '주의',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: textPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${attentionCount ?? 0}',
+                style: const TextStyle(fontSize: 13, color: textMedium),
+              ),
+            ],
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '경고',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: textPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${warningCount ?? 0}',
+                style: const TextStyle(fontSize: 13, color: textMedium),
+              ),
+            ],
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '상태',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: textPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                status,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: status == '안전'
+                      ? mainGreen
+                      : status == '주의'
+                      ? warnYellow
+                      : dangerRed,
+                ),
+              ),
+            ],
           ),
         ],
       ),
