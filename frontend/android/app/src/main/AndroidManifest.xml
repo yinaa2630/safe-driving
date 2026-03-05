@@ -12,17 +12,14 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:icon="@mipmap/ic_launcher">
 
-        <!-- ✅ 카카오맵 키 (벡터맵) : application 아래로 -->
         <meta-data
             android:name="com.kakao.vectormap.KAKAO_MAP_KEY"
             android:value="e74d2b161fac47a3985f30b5c19335cc" />
 
-        <!-- ✅ 카카오 SDK 앱키 : application 아래로 -->
         <meta-data
             android:name="com.kakao.sdk.AppKey"
             android:value="e74d2b161fac47a3985f30b5c19335cc" />
 
-        <!-- Flutter embedding -->
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
@@ -37,7 +34,6 @@
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
 
-            <!-- Flutter 테마는 activity 안에 있어도 OK -->
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme" />
@@ -52,6 +48,13 @@
 
     <queries>
         <package android:name="net.daum.android.map" />
+        <package android:name="com.skt.tmap.ku" />
+        <package android:name="com.skt.skaf.l001mtm091" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <data android:host="com.skt.tmap.ku" android:scheme="tmap" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
