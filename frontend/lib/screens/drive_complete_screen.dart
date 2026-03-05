@@ -1,16 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_demo/providers/driving_id_notifier.dart';
+import 'package:flutter_demo/theme/colors.dart';
+import 'package:flutter_demo/utils/format_seconds.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_demo/providers/drive_summary_notifier.dart';
 
 class DriveCompleteScreen extends ConsumerWidget {
   const DriveCompleteScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 더미 데이터
-    // TODO : 서버에서 주행 결과 가져오기
-    final minutes = 10;
-    final seconds = 1;
+    final driveSummary = ref.read(driveSummaryProvider);
+    bool status = true;
+    int duration = 0; // 총주행시간(초)
+    int attentionCount = 0; // WARNING 횟수
+    int warningCount = 0; // ATTENTION 횟수
+    if (driveSummary != null) {
+      duration = driveSummary.duration;
+      attentionCount = driveSummary.attentionCount;
+      warningCount = driveSummary.warningCount;
+    }
+
+    if (warningCount > 0 || attentionCount > 3) status = false;
     return Scaffold(
       backgroundColor: const Color(0xFFF4F4F4),
       body: Center(
@@ -19,7 +30,11 @@ class DriveCompleteScreen extends ConsumerWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.check_circle, size: 110, color: Colors.green),
+              Icon(
+                Icons.check_circle,
+                size: 110,
+                color: status ? mainGreen : warnYellow,
+              ),
               const SizedBox(height: 24),
 
               const Text(
@@ -28,11 +43,16 @@ class DriveCompleteScreen extends ConsumerWidget {
               ),
 
               const SizedBox(height: 12),
-              // TODO : 주의, 경고 카운트에 따라 문구 다르게 해야함
-              const Text(
-                "오늘도 안전 운전 하셨어요.",
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
+              if (warningCount > 0 || attentionCount > 3)
+                const Text(
+                  "앞으로 주의하셔야겠어요.",
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                )
+              else
+                const Text(
+                  "오늘도 안전 운전 하셨어요.",
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                ),
 
               const SizedBox(height: 32),
 
@@ -43,7 +63,7 @@ class DriveCompleteScreen extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withAlpha(50),
                       blurRadius: 10,
                     ),
                   ],
@@ -53,7 +73,20 @@ class DriveCompleteScreen extends ConsumerWidget {
                     _buildRow(
                       Icons.access_time,
                       "총 주행 시간",
-                      "${minutes}분 ${seconds}초",
+                      formatSeconds(duration),
+                      normal: status,
+                    ),
+                    _buildRow(
+                      Icons.error,
+                      "주의 횟수",
+                      "$attentionCount회",
+                      normal: status,
+                    ),
+                    _buildRow(
+                      Icons.warning,
+                      "경고 횟수",
+                      "$warningCount회",
+                      normal: status,
                     ),
                   ],
                 ),
@@ -66,8 +99,8 @@ class DriveCompleteScreen extends ConsumerWidget {
                 height: 50,
                 child: ElevatedButton(
                   onPressed: () {
-                    // TODO : drivingID 초기화 확인
                     ref.read(drivingIdProvider.notifier).clear();
+                    ref.read(driveSummaryProvider.notifier).clear();
                     Navigator.pushNamed(context, '/main');
                   },
                   style: ElevatedButton.styleFrom(
@@ -89,13 +122,18 @@ class DriveCompleteScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildRow(IconData icon, String title, String value) {
+  Widget _buildRow(
+    IconData icon,
+    String title,
+    String value, {
+    bool normal = true,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Row(
           children: [
-            Icon(icon, color: Colors.green),
+            Icon(icon, color: normal ? mainGreen : warnYellow),
             const SizedBox(width: 10),
             Text(title, style: const TextStyle(fontSize: 16)),
           ],

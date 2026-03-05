@@ -2,13 +2,16 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter_demo/providers/driving_id_notifier.dart';
-import 'package:flutter_demo/screens/severe_warning_screen.dart';
+import 'package:flutter_demo/service/drive_record_service.dart';
 import 'package:flutter_demo/service/face_mesh_service.dart';
+import 'package:flutter_demo/service/matching_service.dart';
 import 'package:flutter_demo/service/tflite_service.dart';
 import 'package:flutter_demo/theme/colors.dart';
 import 'package:flutter_demo/utils/camera_utils.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mlkit_face_mesh_detection/google_mlkit_face_mesh_detection.dart';
+import 'package:flutter_demo/service/drive_event_service.dart';
+import 'package:flutter_demo/providers/drive_summary_notifier.dart';
 
 class DrowsinessScreen extends ConsumerStatefulWidget {
   final CameraDescription camera;
@@ -23,13 +26,23 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
   late CameraController _controller;
   final FaceMeshService _meshService = FaceMeshService();
   final TFLiteService _tfLiteService = TFLiteService();
+  final MatchingService _matchingService = MatchingService();
   final AudioPlayer _audioPlayer = AudioPlayer();
   final List<double> _scoreHistory = []; // 점수 평균을 위한 리스트
+
+  final DriveEventService _driveEventService = DriveEventService();
+
+  // 주행 요약용 변수
+  late DateTime _startTime;
+  int _attentionCount = 0;
+  int _warningCount = 0;
+  double _totalScore = 0;
+  int _scoreSamples = 0;
 
   bool _isProcessing = false;
   double _currentEAR = 0.0; // face mesh 에서 판단한 EAR 지수
   int _modelDrowsyCounter = 0; // 모델 점수 지속 확인용
-  double _drowsyScore = 0.0; // 모델이 판단한 졸음 확률
+  double? _drowsyScore; // 모델이 판단한 졸음 확률
   bool _isDrowsy = false;
   int _warningCountdown = 3;
   DateTime? _drowsyStartTime;
@@ -38,6 +51,9 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
   int _blinkCount = 0; // 전체 깜빡임 횟수
   bool _isEyeClosed = false; // 현재 눈이 감겨있는 상태인지 체크
 
+  // 운전 종료시 UI 로딩
+  bool _isEnding = false;
+
   // 눈 랜드마크 인덱스 (고정값)
   final List<int> _leftEyeIdx = [160, 144, 158, 153, 33, 133];
   final List<int> _rightEyeIdx = [385, 380, 387, 373, 263, 362];
@@ -45,6 +61,7 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
   @override
   void initState() {
     super.initState();
+    _startTime = DateTime.now(); // 추가
     _audioPlayer.setVolume(1.0);
     _initCamera();
   }
@@ -61,8 +78,7 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
     try {
       await _controller.initialize();
       if (!mounted) return;
-
-      // 2. 카메라가 안정적으로 뜬 후에 모델 로드 (비동기)
+      // 카메라가 안정적으로 뜬 후에 모델 로드 (비동기)
       await _tfLiteService.loadModel();
 
       setState(() {});
@@ -77,7 +93,7 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
     if (_isProcessing) return;
     // 2프레임당 1번만 처리
     _frameCount++;
-    if (_frameCount % 2 != 0) return;
+    if (_frameCount % 3 != 0) return;
 
     _isProcessing = true;
 
@@ -157,31 +173,64 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
     }
   }
 
+  void _sendEventAsync({
+    required int driveId,
+    required String eventType,
+    required double score,
+  }) {
+    Future.microtask(() async {
+      try {
+        final pos = await _matchingService.getCurrentLocation();
+        await _driveEventService.saveEvent(
+          driveRecordId: driveId,
+          eventType: eventType,
+          score: score,
+          lat: pos.latitude,
+          lng: pos.longitude,
+        );
+      } catch (e) {
+        debugPrint("이벤트 저장 실패: $e");
+      }
+    });
+  }
+
   void _updateUI(double ear, double? score) async {
+    if (score == null) {
+      setState(() {
+        _currentEAR = ear;
+      });
+
+      return;
+    }
+
     const double modelUpperThreshold = 0.5; // 이 점수 넘으면 졸음 의심
     const double modelLowerThreshold = 0.4; // 이 점수 밑으로 내려가야 안심
 
-    // 1. 모델 점수 안정화 (이동 평균)
-    if (score != null) {
-      _scoreHistory.add(score);
-      if (_scoreHistory.length > 5) _scoreHistory.removeAt(0); // 최근 25프레임 평균
-    }
+    // 데이터 추가
+    _scoreHistory.add(score);
+    if (_scoreHistory.length > 5) _scoreHistory.removeAt(0); // 최근 5프레임 평균
 
     // 단순 평균 대신 가중치 부여
     double weightedSum = 0;
     double weightTotal = 0;
-    for (int i = 0; i < _scoreHistory.length; i++) {
-      double weight = (i + 1).toDouble(); // 최근 데이터일수록 가중치 증가
-      weightedSum += _scoreHistory[i] * weight;
-      weightTotal += weight;
+
+    if (_scoreHistory.isNotEmpty) {
+      for (int i = 0; i < _scoreHistory.length; i++) {
+        double weight = (i + 1).toDouble();
+        weightedSum += _scoreHistory[i] * weight;
+        weightTotal += weight;
+      }
     }
 
-    double avgScore = _scoreHistory.isEmpty ? 0.0 : weightedSum / weightTotal;
+    // 0으로 나누기 방지
+    double avgScore = (weightTotal > 0) ? (weightedSum / weightTotal) : 0.0;
 
     setState(() {
       _currentEAR = ear;
       _drowsyScore = avgScore; // 화면에는 부드러운 평균 점수 표시
     });
+    _totalScore += avgScore;
+    _scoreSamples++;
 
     // 2. 모델 판정 (점수가 높게 유지되는지 체크)
     if (avgScore > modelUpperThreshold) {
@@ -191,6 +240,8 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
     }
 
     bool modelDrowsy = _modelDrowsyCounter >= 5;
+    final driveIdStr = ref.read(drivingIdProvider);
+    final driveId = int.tryParse(driveIdStr ?? "");
 
     if (modelDrowsy) {
       // TODO : 주의 상태일 때 서버에 avgScore 데이터 보냄
@@ -201,6 +252,16 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
           _drowsyStartTime = DateTime.now();
           _warningCountdown = 3;
         });
+
+        _attentionCount++;
+        // ATTENTION 이벤트 저장
+        if (driveId != null) {
+          _sendEventAsync(
+            driveId: driveId,
+            eventType: "ATTENTION",
+            score: avgScore,
+          );
+        }
       } else {
         // 주의 유지 및 카운트다운
         final elapsed = DateTime.now().difference(_drowsyStartTime!).inSeconds;
@@ -211,18 +272,31 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
         if (elapsed >= 3 && !_isSeverePushed) {
           _isSeverePushed = true;
 
-          // TODO : 경고상태일 때 서버에 avgScore 데이터 보냄
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const SevereWarningScreen()),
-          ).then((_) {
+          if (_controller.value.isStreamingImages) {
+            await _controller.stopImageStream();
+          }
+
+          _warningCount++;
+          // WARNING 이벤트 저장
+          if (driveId != null) {
+            _sendEventAsync(
+              driveId: driveId,
+              eventType: "WARNING",
+              score: avgScore,
+            );
+          }
+          _setDriveSummary();
+          Navigator.pushNamed(context, '/warning').then((_) async {
             _isSeverePushed = false;
             _modelDrowsyCounter = 0; // 카운터 초기화
             _scoreHistory.clear(); // 점수 히스토리 완전 삭제
-            _drowsyScore = 0.0; // 표시되는 점수 초기화
+            _drowsyScore = null; // 표시되는 점수 초기화
             _isDrowsy = false; // 졸음 상태 해제
             _drowsyStartTime = null; // 시작 시간 초기화
             _isEyeClosed = false; // 눈깜빡임 상태 초기화
+            if (!_controller.value.isStreamingImages) {
+              await _controller.startImageStream(_processCameraImage);
+            }
           });
         }
       }
@@ -239,8 +313,27 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
     }
   }
 
+  void _setDriveSummary() {
+    final duration = DateTime.now().difference(_startTime).inSeconds;
+
+    final avg = _scoreSamples == 0 ? 0.0 : _totalScore / _scoreSamples;
+    ref
+        .read(driveSummaryProvider.notifier)
+        .setSummary(
+          DriveSummary(
+            duration: duration,
+            avgDrowsiness: avg,
+            warningCount: _warningCount,
+            attentionCount: _attentionCount,
+          ),
+        );
+  }
+
   @override
   void dispose() {
+    if (_controller.value.isStreamingImages) {
+      _controller.stopImageStream();
+    }
     _controller.dispose();
     _meshService.dispose();
     _tfLiteService.dispose();
@@ -249,7 +342,6 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final drivingId = ref.watch(drivingIdProvider);
     if (!_controller.value.isInitialized) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -301,76 +393,151 @@ class _DrowsinessScreenState extends ConsumerState<DrowsinessScreen> {
             left: 0,
             right: 0,
             bottom: 0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(28),
+            child: SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 20,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    offset: const Offset(0, -2),
-                    blurRadius: 8,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(28),
                   ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 작은 바
-                  Container(
-                    width: 42,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: Colors.black12,
-                      borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      offset: const Offset(0, -2),
+                      blurRadius: 8,
                     ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // 3개 정보 박스
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildBottomInfo("EAR", _currentEAR.toStringAsFixed(3)),
-                      _buildBottomInfo("졸린눈", "$_blinkCount회"), // ✨ 추가
-                      _buildBottomInfo("졸음수치", _drowsyScore.toStringAsFixed(3)),
-                      _buildBottomInfo("상태", _isDrowsy ? "주의" : "정상"),
-                    ],
-                  ),
-
-                  const SizedBox(height: 26),
-
-                  // 운전 종료 버튼
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        // TODO : 주행 종료로 종료시간을 서버에 전송.
-                        // 확인 후 해당 print문 삭제하기
-                        print('🌟drivingId :::: $drivingId');
-                        Navigator.pushNamed(context, '/complete');
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: const Text(
-                        "운전 종료",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 작은 바
+                    Container(
+                      width: 42,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.black12,
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 20),
+
+                    // 3개 정보 박스
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _buildBottomInfo("EAR", _currentEAR.toStringAsFixed(3)),
+                        _buildBottomInfo("졸린눈", "$_blinkCount회"), // ✨ 추가
+                        _buildBottomInfo(
+                          "졸음수치",
+                          _drowsyScore == null
+                              ? '-'
+                              : _drowsyScore!.toStringAsFixed(3),
+                        ),
+                        _buildBottomInfo("상태", _isDrowsy ? "주의" : "정상"),
+                      ],
+                    ),
+
+                    const SizedBox(height: 26),
+
+                    // 운전 종료 버튼
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isEnding
+                            ? null
+                            : () async {
+                                setState(() {
+                                  _isEnding = true;
+                                });
+
+                                _setDriveSummary();
+                                final driveIdStr = ref.read(drivingIdProvider);
+                                if (!mounted) return;
+                                if (driveIdStr != null) {
+                                  final driveId = int.parse(driveIdStr);
+                                  final driveService = DriveRecordService();
+                                  final matchingService = MatchingService();
+                                  final duration = DateTime.now()
+                                      .difference(_startTime)
+                                      .inSeconds;
+
+                                  final avg = _scoreSamples == 0
+                                      ? 0.0
+                                      : _totalScore / _scoreSamples;
+                                  try {
+                                    final pos = await matchingService
+                                        .getCurrentLocation();
+                                    final success = await driveService.endDrive(
+                                      driveId: driveId,
+                                      endTime: DateTime.now(),
+                                      duration: duration,
+                                      avgDrowsiness: avg,
+                                      warningCount: _warningCount,
+                                      attentionCount: _attentionCount,
+                                      endLat: pos.latitude,
+                                      endLng: pos.longitude,
+                                    );
+                                    if (success) {
+                                      Navigator.pushNamedAndRemoveUntil(
+                                        context,
+                                        '/complete',
+                                        (route) =>
+                                            route.settings.name == '/main',
+                                      );
+                                    }
+                                  } catch (e) {
+                                    if (!mounted) return;
+
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text("종료중 처리 에러"),
+                                      ),
+                                    );
+                                  } finally {
+                                    if (mounted) {
+                                      setState(() {
+                                        _isEnding = false;
+                                      });
+                                    }
+                                  }
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: _isEnding
+                            ? const SizedBox(
+                                height: 22,
+                                width: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              )
+                            : const Text(
+                                "운전 종료",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

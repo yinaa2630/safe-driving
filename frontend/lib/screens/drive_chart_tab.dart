@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_demo/theme/colors.dart';
-import '../data/drive_repository.dart';
 import '../models/drive_record.dart';
-import 'package:flutter_demo/data/drive_repository.dart';
-import 'package:flutter_demo/data/mock_drive_data.dart';
+import '../service/drive_record_service.dart';
 
 class DriveChartTab extends StatefulWidget {
   const DriveChartTab({super.key});
@@ -17,10 +15,28 @@ class _DriveChartTabState extends State<DriveChartTab> {
   double minX = 0;
   double maxX = 6;
 
-  final List<DriveRecord> records = MockDriveData.getData();
+  List<dynamic> records = [];
+
+  @override
+  void initState() {
+    super.initState();
+    loadRecords();
+  }
+
+  Future<void> loadRecords() async {
+    final data = await DriveRecordService().getDriveRecords();
+
+    setState(() {
+      records = data;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (records.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return Column(
       children: [
         const SizedBox(height: 20),
@@ -33,35 +49,28 @@ class _DriveChartTabState extends State<DriveChartTab> {
                 maxX: maxX,
                 minY: 0,
                 maxY: 100,
-                lineTouchData: LineTouchData(
-                  touchTooltipData: LineTouchTooltipData(
-                    getTooltipColor: (touchedSpot) => bgWhite,
-                    getTooltipItems: (spots) {
-                      return spots.map((spot) {
-                        return LineTooltipItem(
-                          spot.y.toString(),
-                          TextStyle(
-                            color: mainGreen, // 원하는 텍스트 색
-                            fontWeight: FontWeight.bold,
-                          ),
-                        );
-                      }).toList();
-                    },
-                  ),
-                ),
                 lineBarsData: [
                   LineChartBarData(
                     isCurved: true,
                     color: mainGreen.withAlpha(90),
                     spots: records
-                        .asMap()
-                        .entries
-                        .map((e) => FlSpot(e.key.toDouble(), e.value.score))
-                        .toList(),
+                      .asMap()
+                      .entries
+                      .map(
+                        (e) => FlSpot(
+                          e.key.toDouble(),
+                          ((e.value["avgDrowsiness"] ?? 0) as num).toDouble() * 100,
+                        ),
+                      )
+                      .toList(),
                     dotData: FlDotData(
                       getDotPainter: (spot, percent, bar, index) {
-                        bool isToday =
-                            records[index].date.day == DateTime.now().day;
+                        final date = DateTime.parse(
+                          records[index]["driveDate"] ?? DateTime.now().toIso8601String(),
+                        );
+
+                        bool isToday = date.day == DateTime.now().day;
+
                         return FlDotCirclePainter(
                           radius: 4,
                           color: isToday ? dangerRed : mainGreen,

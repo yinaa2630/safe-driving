@@ -26,4 +26,7 @@ export class User {
 
   @Column({ name: 'emergency_call', nullable: false })
   emergencyCall: string;
+
+  @OneToMany(() => DriveRecord, (record) => record.user)
+  driveRecords: DriveRecord[];
 }

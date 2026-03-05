@@ -1,17 +1,28 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_demo/providers/drive_summary_notifier.dart';
+import 'package:flutter_demo/providers/driving_id_notifier.dart';
+import 'package:flutter_demo/providers/me_data_notifier.dart';
+import 'package:flutter_demo/service/drive_record_service.dart';
+import 'package:flutter_demo/service/matching_service.dart';
 import 'package:flutter_demo/theme/colors.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class SevereWarningScreen extends StatefulWidget {
+class SevereWarningScreen extends ConsumerStatefulWidget {
   const SevereWarningScreen({super.key});
 
   @override
-  State<SevereWarningScreen> createState() => _SevereWarningScreenState();
+  ConsumerState<SevereWarningScreen> createState() =>
+      _SevereWarningScreenState();
 }
 
-class _SevereWarningScreenState extends State<SevereWarningScreen> {
+class _SevereWarningScreenState extends ConsumerState<SevereWarningScreen> {
   final AudioPlayer _audioPlayer = AudioPlayer();
+
+  bool _isFinding = false; // 가까운 휴게소 찾을시 UI 로딩
+  bool _isCalling = false; // 비상연락시 UI 로딩
+
   @override
   void initState() {
     super.initState();
@@ -22,7 +33,7 @@ class _SevereWarningScreenState extends State<SevereWarningScreen> {
   void _playBeep() async {
     try {
       // 에뮬레이터 부하를 줄이기 위해 재생 전 모드 고정
-      await _audioPlayer.setPlayerMode(PlayerMode.lowLatency);
+      await _audioPlayer.setPlayerMode(PlayerMode.mediaPlayer);
       await _audioPlayer.play(AssetSource('sound/beep.mp3'));
       debugPrint("🔔 비프음 재생 명령 전송됨");
     } catch (e) {
@@ -34,7 +45,7 @@ class _SevereWarningScreenState extends State<SevereWarningScreen> {
     await _audioPlayer.stop();
   }
 
-  Future<void> makePhoneCall(String phoneNumber) async {
+  Future<void> _makePhoneCall(String phoneNumber) async {
     final Uri url = Uri(scheme: 'tel', path: phoneNumber);
 
     if (await canLaunchUrl(url)) {
@@ -42,6 +53,30 @@ class _SevereWarningScreenState extends State<SevereWarningScreen> {
     } else {
       print('전화 앱을 열 수 없습니다.');
     }
+  }
+
+  Future<bool> _endDrive() async {
+    final driveSummary = ref.read(driveSummaryProvider);
+    final driveIdStr = ref.read(drivingIdProvider);
+
+    if (driveSummary == null || driveIdStr == null) return false;
+
+    final driveId = int.parse(driveIdStr);
+    final driveService = DriveRecordService();
+    final matchingService = MatchingService();
+
+    final pos = await matchingService.getCurrentLocation();
+
+    return await driveService.endDrive(
+      driveId: driveId,
+      endTime: DateTime.now(),
+      duration: driveSummary.duration,
+      avgDrowsiness: driveSummary.avgDrowsiness,
+      warningCount: driveSummary.warningCount,
+      attentionCount: driveSummary.attentionCount,
+      endLat: pos.latitude,
+      endLng: pos.longitude,
+    );
   }
 
   @override
@@ -92,24 +127,53 @@ class _SevereWarningScreenState extends State<SevereWarningScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                onPressed: () {
-                  // TODO : 주행 종료로 서버에 데이터 전송
-                  // 네비게이션에서 matching 라우팅으로 이동하되
-                  // 기존 히스토리 지우고 직전 페이지를 /main로 설정
-                  Navigator.pushNamedAndRemoveUntil(
-                    context,
-                    '/matching',
-                    (route) => route.settings.name == '/main',
-                  );
-                },
-                child: Text(
-                  "🚨 가까운 휴게소 찾기",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                onPressed: _isFinding
+                    ? null
+                    : () async {
+                        setState(() {
+                          _isFinding = true;
+                        });
+                        try {
+                          final success = await _endDrive();
+                          if (success && mounted) {
+                            Navigator.pushNamedAndRemoveUntil(
+                              context,
+                              '/matching',
+                              (route) => route.settings.name == '/main',
+                            );
+                          }
+                        } catch (e) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("휴게소 찾기 처리 에러")),
+                          );
+                        } finally {
+                          if (mounted) {
+                            setState(() {
+                              _isFinding = false;
+                            });
+                          }
+                        }
+                      },
+                child: _isFinding
+                    ? const SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      )
+                    : const Text(
+                        "🚨 가까운 휴게소 찾기",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
               ),
             ),
 
@@ -126,18 +190,60 @@ class _SevereWarningScreenState extends State<SevereWarningScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                onPressed: () {
-                  // TODO : 전화번호의 경우 userInfo에서 받아와야함(로그인시 provider로 관리할지?)
-                  makePhoneCall('01012345678');
-                },
-                child: Text(
-                  "📞 비상 연락하기",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                onPressed: _isCalling
+                    ? null
+                    : () async {
+                        setState(() {
+                          _isCalling = true;
+                        });
+                        try {
+                          final success = await _endDrive();
+                          if (!success) return;
+
+                          final meData = ref.read(meDataProvider);
+                          if (meData == null) return;
+
+                          await _makePhoneCall(meData.emergencyCall);
+
+                          if (mounted) {
+                            Navigator.pushNamedAndRemoveUntil(
+                              context,
+                              '/main',
+                              (route) => route.settings.name == '/main',
+                            );
+                          }
+                        } catch (e) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("통화 처리 에러")),
+                          );
+                        } finally {
+                          if (mounted) {
+                            setState(() {
+                              _isCalling = false;
+                            });
+                          }
+                        }
+                      },
+                child: _isCalling
+                    ? const SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      )
+                    : Text(
+                        "📞 비상 연락하기",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
               ),
             ),
 

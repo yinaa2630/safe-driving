@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_demo/screens/map_overview_screen.dart';
 import 'package:flutter_demo/service/matching_service.dart';
 import 'package:flutter_demo/theme/colors.dart';
 import 'package:geolocator/geolocator.dart';
@@ -12,11 +13,20 @@ class MatchingScreen extends StatefulWidget {
 
 class _MatchingScreenState extends State<MatchingScreen> {
   final matchingService = MatchingService();
+  final _mapKey = GlobalKey<MapOverviewScreenState>();
 
   Position? _myPosition;
+  double _bearing = -1;
   List<RestArea> _restAreas = [];
   bool _isLoading = true;
   String? _error;
+
+  // ✅ 선택된 카드 "고유키" (RestArea에 id가 없어서 String 키로 관리)
+  String? _selectedKey;
+
+  // ✅ RestArea를 유일하게 구분할 키(데이터 중복 고려해서 lat/lng + direction까지 포함)
+  String _keyOf(RestArea a) =>
+      '${a.type}_${a.name}_${a.latitude}_${a.longitude}_${a.direction}';
 
   @override
   void initState() {
@@ -29,14 +39,38 @@ class _MatchingScreenState extends State<MatchingScreen> {
       _isLoading = true;
       _error = null;
     });
+
     try {
       final pos = await matchingService.getCurrentLocation();
-      setState(() => _myPosition = pos);
+
+      // ✅ GPS bearing 계산
+      final bearing = matchingService.calcBearing(pos);
+
+      setState(() {
+        _myPosition = pos;
+        _bearing = bearing;
+      });
+
+      debugPrint('📍 위치: ${pos.latitude}, ${pos.longitude}');
+      debugPrint('🧭 bearing: $bearing (heading: ${pos.heading})');
+
       final response = await matchingService.getRestAreas(
         pos.latitude,
         pos.longitude,
+        bearing,
       );
-      _restAreas = response.map((e) => RestArea.fromJson(e)).toList();
+
+      final areas = response.map((e) => RestArea.fromJson(e)).toList();
+
+      setState(() {
+        _restAreas = areas;
+
+        // ✅ 리스트 갱신 후, 선택된 항목이 사라졌으면 선택 해제
+        if (_selectedKey != null &&
+            !_restAreas.any((a) => _keyOf(a) == _selectedKey)) {
+          _selectedKey = null;
+        }
+      });
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
@@ -45,6 +79,9 @@ class _MatchingScreenState extends State<MatchingScreen> {
   }
 
   Future<void> _onMoveTap(RestArea area) async {
+    // ✅ 이동 눌러도 선택 테두리 유지
+    setState(() => _selectedKey = _keyOf(area));
+
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -80,30 +117,199 @@ class _MatchingScreenState extends State<MatchingScreen> {
     if (ok == true) await matchingService.navigateKakao(area);
   }
 
+  void _moveToArea(RestArea area) {
+    // ✅ 카드 선택(테두리 표시)
+    setState(() => _selectedKey = _keyOf(area));
+
+    // 지도 이동
+    _mapKey.currentState?.moveToLocation(area.latitude, area.longitude);
+    _mapKey.currentState?.drawRouteTo(area.latitude, area.longitude);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       body: Stack(
         children: [
-          Positioned.fill(
-            child: _TopLocationPanel(
-              position: _myPosition,
-              isLoading: _isLoading,
-              onRefresh: _load,
+          // ── 상단 지도 영역 ──
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: MediaQuery.of(context).size.height * 0.55,
+            child: Stack(
+              children: [
+                // ✅ 로딩 완전히 끝난 후에만 지도 렌더링
+                if (_myPosition != null && !_isLoading)
+                  MapOverviewScreen(
+                    key: _mapKey,
+                    myPosition: _myPosition!,
+                    drowsyShelters:
+                        _restAreas.where((a) => a.isDrowsyShelter).toList(),
+                    restAreas:
+                        _restAreas.where((a) => !a.isDrowsyShelter).toList(),
+                  )
+                else
+                  Container(
+                    color: const Color(0xFFE8EAF6),
+                    child: const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(
+                            color: Color(0xFF3F51B5),
+                          ),
+                          SizedBox(height: 12),
+                          Text(
+                            '위치 및 쉼터 정보를 불러오는 중...',
+                            style: TextStyle(
+                              color: Color(0xFF3F51B5),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // ✅ 상단 헤더 (그라데이션 제거 + 텍스트 검정 + 새로고침 반투명 유지)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '졸음이 감지되었습니다',
+                                style: TextStyle(
+                                  color: Colors.black54,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                '가까운 쉼터를 찾았어요',
+                                style: TextStyle(
+                                  color: Colors.black,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          GestureDetector(
+                            onTap: _load,
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.6),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.refresh,
+                                  color: Colors.black, size: 22),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                // 버튼들 (✅ 전체화면 버튼 제거, GPS 버튼만 유지)
+                if (_myPosition != null && !_isLoading) ...[
+                  Positioned(
+                    bottom: 16,
+                    right: 16,
+                    child: GestureDetector(
+                      onTap: () => _mapKey.currentState?.moveToLocation(
+                        _myPosition!.latitude,
+                        _myPosition!.longitude,
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.15),
+                              blurRadius: 8,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(Icons.gps_fixed,
+                            color: Color(0xFF3F51B5), size: 22),
+                      ),
+                    ),
+                  ),
+
+                  // GPS 좌표 + bearing 표시
+                  Positioned(
+                    bottom: 16,
+                    left: 16,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 6,
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: mainGreen,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '${_myPosition!.latitude.toStringAsFixed(4)}°N  ${_myPosition!.longitude.toStringAsFixed(4)}°E'
+                            '  🧭${_bearing < 0 ? '-' : '${_bearing.toStringAsFixed(0)}°'}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade700,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
+
+          // ── 하단 리스트 시트 ──
           DraggableScrollableSheet(
-            initialChildSize: 0.45,
-            minChildSize: 0.45,
+            initialChildSize: 0.47,
+            minChildSize: 0.47,
             maxChildSize: 0.95,
             builder: (context, scrollController) {
               return Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(30),
-                  ),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(30)),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.08),
@@ -132,17 +338,13 @@ class _MatchingScreenState extends State<MatchingScreen> {
                           const Text(
                             "가까운 쉼터",
                             style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                            ),
+                                fontSize: 17, fontWeight: FontWeight.w700),
                           ),
                           if (!_isLoading && _restAreas.isNotEmpty)
                             Text(
                               '${_restAreas.length}곳',
                               style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey.shade500,
-                              ),
+                                  fontSize: 13, color: Colors.grey.shade500),
                             ),
                         ],
                       ),
@@ -152,39 +354,44 @@ class _MatchingScreenState extends State<MatchingScreen> {
                       child: _isLoading
                           ? const Center(child: CircularProgressIndicator())
                           : _error != null
-                          ? Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.error_outline,
-                                    color: Colors.red,
-                                    size: 40,
+                              ? Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.error_outline,
+                                          color: Colors.red, size: 40),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        _error!,
+                                        textAlign: TextAlign.center,
+                                        style:
+                                            const TextStyle(color: Colors.red),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      ElevatedButton(
+                                        onPressed: _load,
+                                        child: const Text('다시 시도'),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    _error!,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(color: Colors.red),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  ElevatedButton(
-                                    onPressed: _load,
-                                    child: const Text('다시 시도'),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : _restAreas.isEmpty
-                          ? const Center(child: Text('근처 휴게소/쉼터가 없어요'))
-                          : ListView.builder(
-                              controller: scrollController,
-                              itemCount: _restAreas.length,
-                              itemBuilder: (_, i) => _ShelterItem(
-                                area: _restAreas[i],
-                                onMoveTap: () => _onMoveTap(_restAreas[i]),
-                              ),
-                            ),
+                                )
+                              : _restAreas.isEmpty
+                                  ? const Center(
+                                      child: Text('근처 휴게소/쉼터가 없어요'))
+                                  : ListView.builder(
+                                      controller: scrollController,
+                                      itemCount: _restAreas.length,
+                                      itemBuilder: (_, i) {
+                                        final area = _restAreas[i];
+                                        return _ShelterItem(
+                                          area: area,
+                                          isSelected:
+                                              _selectedKey == _keyOf(area),
+                                          onMoveTap: () => _onMoveTap(area),
+                                          onCardTap: () => _moveToArea(area),
+                                        );
+                                      },
+                                    ),
                     ),
                   ],
                 ),
@@ -197,296 +404,110 @@ class _MatchingScreenState extends State<MatchingScreen> {
   }
 }
 
-class _TopLocationPanel extends StatelessWidget {
-  final Position? position;
-  final bool isLoading;
-  final VoidCallback onRefresh;
+class _ShelterItem extends StatelessWidget {
+  final RestArea area;
+  final bool isSelected;
+  final VoidCallback onMoveTap;
+  final VoidCallback onCardTap;
 
-  const _TopLocationPanel({
-    required this.position,
-    required this.isLoading,
-    required this.onRefresh,
+  const _ShelterItem({
+    required this.area,
+    required this.isSelected,
+    required this.onMoveTap,
+    required this.onCardTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF1A237E), Color(0xFF3F51B5)],
+    final isDrowsy = area.isDrowsyShelter;
+
+    final selectedBorderColor = isDrowsy ? mainGreen : infoBlue;
+
+    final tagColor =
+        isDrowsy ? mainGreen.withAlpha(4) : infoLightBlue.withAlpha(4);
+    final tagTextColor = isDrowsy ? mainGreen : infoLightBlue;
+    final icon = isDrowsy ? Icons.eco : Icons.local_parking;
+    final displayName =
+        isDrowsy ? '${area.name} 졸음쉼터' : '${area.name} 휴게소';
+
+    return GestureDetector(
+      onTap: onCardTap,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isSelected ? selectedBorderColor : Colors.grey.shade200,
+            width: isSelected ? 2.2 : 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: inkBlack.withAlpha(4),
+              blurRadius: 6,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: tagColor.withAlpha(40),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(icon, size: 28, color: tagTextColor),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '졸음이 감지되었습니다',
-                        style: TextStyle(color: Colors.white70, fontSize: 13),
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        '가까운 쉼터를 찾았어요',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                  Text(displayName,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${area.distance.toStringAsFixed(1)}km · ${area.roadName} ${area.direction}',
+                    style: TextStyle(fontSize: 13, color: textMedium),
                   ),
-                  GestureDetector(
-                    onTap: onRefresh,
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withAlpha(20),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.refresh,
-                        color: Colors.white,
-                        size: 22,
-                      ),
-                    ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      if (area.hasToilet)
+                        _MiniChip(label: '화장실', color: tagTextColor),
+                      if (area.gasStation)
+                        _MiniChip(label: '주유', color: tagTextColor),
+                      if (area.evStation)
+                        _MiniChip(label: 'EV', color: tagTextColor),
+                    ],
                   ),
                 ],
               ),
-              const SizedBox(height: 28),
-              Container(
-                padding: const EdgeInsets.all(18),
+            ),
+            GestureDetector(
+              onTap: onMoveTap,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(vertical: 6, horizontal: 14),
                 decoration: BoxDecoration(
-                  color: Colors.white.withAlpha(20),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.white.withAlpha(20),
-                    width: 1,
-                  ),
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withAlpha(50),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.my_location,
-                        color: Colors.white,
-                        size: 26,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: isLoading
-                          ? Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  height: 14,
-                                  width: 120,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withAlpha(30),
-                                    borderRadius: BorderRadius.circular(7),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Container(
-                                  height: 12,
-                                  width: 180,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withAlpha(100),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                ),
-                              ],
-                            )
-                          : position == null
-                          ? const Text(
-                              '위치를 가져오는 중...',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 14,
-                              ),
-                            )
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  '현재 위치',
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${position!.latitude.toStringAsFixed(4)}°N, ${position!.longitude.toStringAsFixed(4)}°E',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  '정확도 ${position!.accuracy.toStringAsFixed(0)}m',
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: position != null
-                            ? mainGreen.withAlpha(40)
-                            : warnYellow.withAlpha(40),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: position != null ? mainGreen : warnYellow,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            position != null ? 'GPS' : '...',
-                            style: TextStyle(
-                              color: position != null ? mainGreen : warnYellow,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ShelterItem extends StatelessWidget {
-  final RestArea area;
-  final VoidCallback onMoveTap;
-
-  const _ShelterItem({required this.area, required this.onMoveTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDrowsy = area.isDrowsyShelter;
-    final tagColor = isDrowsy
-        ? mainGreen.withAlpha(4)
-        : infoLightBlue.withAlpha(4);
-    final tagTextColor = isDrowsy ? mainGreen : infoLightBlue;
-    final icon = isDrowsy ? Icons.eco : Icons.local_parking;
-    final displayName = isDrowsy ? '${area.name} 졸음쉼터' : '${area.name} 휴게소';
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: inkBlack.withAlpha(4),
-            blurRadius: 6,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: tagColor.withAlpha(40),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(icon, size: 28, color: tagTextColor),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  displayName,
-                  style: const TextStyle(
-                    fontSize: 16,
+                child: Text(
+                  "이동 →",
+                  style: TextStyle(
+                    color: infoBlue,
                     fontWeight: FontWeight.w600,
+                    fontSize: 13,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '${area.distance.toStringAsFixed(1)}km · ${area.roadName} ${area.direction}',
-                  style: TextStyle(fontSize: 13, color: textMedium),
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    if (area.hasToilet)
-                      _MiniChip(label: '화장실', color: tagTextColor),
-                    if (area.gasStation)
-                      _MiniChip(label: '주유', color: tagTextColor),
-                    if (area.evStation)
-                      _MiniChip(label: 'EV', color: tagTextColor),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          GestureDetector(
-            onTap: onMoveTap,
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 14),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Text(
-                "이동 →",
-                style: TextStyle(
-                  color: infoBlue,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

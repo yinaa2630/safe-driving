@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DriveRecord } from './drive-record.entity';
@@ -10,22 +10,57 @@ export class DriveRecordService {
     private readonly driveRecordRepository: Repository<DriveRecord>,
   ) {}
 
+  // 주행 시작
   async create(data: any, userId: number) {
     const record = this.driveRecordRepository.create({
-      driveDate: data.driveDate,           
-      startTime: data.startTime,           
-      endTime: data.endTime,               
-      duration: data.duration,
-      avgDrowsiness: data.avgDrowsiness,   
-      warningCount: data.warningCount,     
-      attentionCount: data.attentionCount ?? 0,  
-      userId: userId,                    
-      startLat: data.startLat,           
-      startLng: data.startLng,           
-      endLat: data.endLat,                
-      endLng: data.endLng,              
+      driveDate: data.drive_date,
+      startTime: data.start_time,
+      endTime: null,
+      duration: null,
+      avgDrowsiness: null,
+      warningCount: null,
+      attentionCount: data.attention_count ?? 0,
+      userId: userId,
+      startLat: data.start_lat,
+      startLng: data.start_lng,
+      endLat: null,
+      endLng: null,
     });
 
     return this.driveRecordRepository.save(record);
+  }
+
+  // 주행 종료
+  async endDrive(id: number, data: any, userId: number) {
+    const record = await this.driveRecordRepository.findOne({
+      where: { id },
+    });
+
+    if (!record) {
+      throw new NotFoundException('Drive record not found');
+    }
+
+    if (record.userId !== userId) {
+      throw new ForbiddenException('Unauthorized access');
+    }
+
+    record.endTime = data.end_time;
+    record.duration = data.duration;
+    record.avgDrowsiness = data.avg_drowsiness;
+    record.warningCount = data.warning_count;
+    record.attentionCount = data.attention_count;
+    record.endLat = data.end_lat;
+    record.endLng = data.end_lng;
+
+    return this.driveRecordRepository.save(record);
+  }
+
+  // 내 주행 기록 조회
+  async getMyRecords(userId: number) {
+    return this.driveRecordRepository.find({
+      where: { userId },
+      order: { driveDate: 'DESC' },
+      take: 10, // 최근 10개
+    });
   }
 }

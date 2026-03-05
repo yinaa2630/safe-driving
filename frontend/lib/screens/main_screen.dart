@@ -1,18 +1,62 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_demo/providers/driving_id_notifier.dart';
+import 'package:flutter_demo/providers/me_data_notifier.dart';
+import 'package:flutter_demo/service/auth_service.dart';
 import 'package:flutter_demo/theme/colors.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'widgets/monthly_calendar_widget.dart';
 import 'drowsiness_screen.dart';
 import 'package:camera/camera.dart';
+import 'package:flutter_demo/service/matching_service.dart';
+import 'package:flutter_demo/service/drive_record_service.dart';
+import 'package:flutter_demo/utils/format_seconds.dart';
 
-class MainScreen extends ConsumerWidget {
+class MainScreen extends ConsumerStatefulWidget {
+  const MainScreen({super.key, required this.camera});
   final CameraDescription camera;
 
-  const MainScreen({super.key, required this.camera});
+  @override
+  ConsumerState<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends ConsumerState<MainScreen> {
+  bool _isStarting = false;
+
+  List<dynamic> records = [];
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  void initState() {
+    super.initState();
+    _loadMe();
+    _loadDriveRecords();
+  }
+
+  Future<void> _loadMe() async {
+    final AuthService authService = AuthService();
+    final meJson = await authService.getMe();
+
+    if (!mounted) return;
+
+    if (meJson != null) {
+      final me = MeData.fromJson(meJson);
+      ref.read(meDataProvider.notifier).setData(me);
+    }
+  }
+
+  Future<void> _loadDriveRecords() async {
+    final data = await DriveRecordService().getDriveRecords();
+
+    if (!mounted) return;
+
+    setState(() {
+      records = data
+          .take(3)
+          .toList(); // 메인스크린에선 최근 3개만, 백엔드에선 10개 넘겨줌(이건 상세페이지)
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -58,18 +102,43 @@ class MainScreen extends ConsumerWidget {
 
                     const SizedBox(height: 16),
 
-                    _driveHistoryItem(
-                      date: "2026. 02. 20",
-                      duration: "36분",
-                      status: "안전",
-                    ),
+                    Column(
+                      children: records.map((record) {
+                        final date = DateTime.parse(
+                          record["driveDate"] ??
+                              DateTime.now().toIso8601String(),
+                        );
 
-                    const SizedBox(height: 12),
+                        final int duration = record["duration"] ?? 0;
+                        final double score =
+                            ((record["avgDrowsiness"] ?? 0.0) as num)
+                                .toDouble() *
+                            100;
+                        final warningCount = record['warningCount'] ?? 0;
+                        final attentionCount = record['attentionCount'] ?? 0;
 
-                    _driveHistoryItem(
-                      date: "2026. 02. 18",
-                      duration: "1시간 12분",
-                      status: "주의 발생 1회",
+                        String status;
+                        if (score >= 80 ||
+                            warningCount > 0 ||
+                            attentionCount > 3) {
+                          status = "위험";
+                        } else if (score >= 60 || attentionCount > 1) {
+                          status = "주의";
+                        } else {
+                          status = "안전";
+                        }
+
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _driveHistoryItem(
+                            date: "${date.year}.${date.month}.${date.day}",
+                            duration: formatSeconds(duration),
+                            attentionCount: attentionCount,
+                            warningCount: warningCount,
+                            status: status,
+                          ),
+                        );
+                      }).toList(),
                     ),
 
                     const SizedBox(height: 32),
@@ -132,27 +201,78 @@ class MainScreen extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              onPressed: () {
-                final startTime = DateTime.now();
+              onPressed: _isStarting
+                  ? null
+                  : () async {
+                      setState(() {
+                        _isStarting = true;
+                      });
+                      final startTime = DateTime.now();
+                      final driveService = DriveRecordService();
+                      final matchingService = MatchingService();
 
-                // TODO : 해당 startTime 을 서버로 전송
-                // 응답값으로 서버에서 drivingId 받음. (해당 코드에서는 임의로 111 설정함.)
-                ref.read(drivingIdProvider.notifier).setId('111');
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => DrowsinessScreen(camera: camera),
-                  ),
-                );
-              },
-              child: const Text(
-                "주행 시작하기",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
+                      try {
+                        // 현재 위치 가져오기
+                        final pos = await matchingService.getCurrentLocation();
+
+                        final driveId = await driveService.startDrive(
+                          driveDate: startTime.toIso8601String(),
+                          startTime: startTime,
+                          startLat: pos.latitude,
+                          startLng: pos.longitude,
+                        );
+
+                        if (!mounted) return;
+
+                        if (driveId != null) {
+                          ref
+                              .read(drivingIdProvider.notifier)
+                              .setId(driveId.toString());
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  DrowsinessScreen(camera: widget.camera),
+                            ),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("주행 시작에 실패했습니다.")),
+                          );
+                        }
+                      } catch (e) {
+                        if (!mounted) return;
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("위치를 가져올 수 없습니다.")),
+                        );
+                      } finally {
+                        if (mounted) {
+                          setState(() {
+                            _isStarting = false;
+                          });
+                        }
+                      }
+                    },
+
+              child: _isStarting
+                  ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Text(
+                      "주행 시작하기",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
             ),
           ),
         ],
@@ -191,6 +311,8 @@ class MainScreen extends ConsumerWidget {
   Widget _driveHistoryItem({
     required String date,
     required String duration,
+    required int? attentionCount,
+    required int? warningCount,
     required String status,
   }) {
     return Container(
@@ -221,13 +343,67 @@ class MainScreen extends ConsumerWidget {
               ),
             ],
           ),
-          Text(
-            status,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: mainGreen,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '주의',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: textPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${attentionCount ?? 0}',
+                style: const TextStyle(fontSize: 13, color: textMedium),
+              ),
+            ],
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '경고',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: textPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${warningCount ?? 0}',
+                style: const TextStyle(fontSize: 13, color: textMedium),
+              ),
+            ],
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '상태',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: textPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                status,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: status == '안전'
+                      ? mainGreen
+                      : status == '주의'
+                      ? warnYellow
+                      : dangerRed,
+                ),
+              ),
+            ],
           ),
         ],
       ),
